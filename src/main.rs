@@ -25,10 +25,12 @@ fn main() -> eframe::Result {
         show_about: false,
         settings: AppSettings::default(),
         cached_dumps_mb: 0,
+        cached_screenshots_mb: 0,
     };
 
     if !app.config.game_path.is_empty() {
         app.cached_dumps_mb = utils::get_dumps_size_mb(&app.config.game_path).unwrap_or(0u64);
+        app.cached_screenshots_mb = utils::get_screenshots_size_mb().unwrap_or(0u64);
     }
 
     eframe::run_native(&PROGRAM_NAME, options, Box::new(|_cc| Ok(Box::new(app))))
@@ -64,8 +66,10 @@ struct MyApp {
     show_about: bool,
     settings: AppSettings,
     cached_dumps_mb: u64,
+    cached_screenshots_mb: u64,
 }
 
+/** Launches DL1 via steam://uri wrapper. */
 fn launch_steam(settings: &AppSettings, custom_args: &str, status: &mut String) {
     let mut steam_args = Vec::new();
 
@@ -106,6 +110,7 @@ fn launch_steam(settings: &AppSettings, custom_args: &str, status: &mut String) 
     }
 }
 
+/** Launches DL1 via std::process. */
 fn launch_direct(game_path: &str, settings: &AppSettings, custom_args: &str, status: &mut String) {
     let exe_path = std::path::Path::new(game_path).join(EXECUTABLE_NAME);
 
@@ -220,7 +225,14 @@ impl MyApp {
 
     /** Shows cleanup UI (dumps, screenshots, logs). */
     fn show_cleanup_ui(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Cleanup");
+        ui.heading("Game Data Cleanup");
+
+        let config_exists = utils::documents_config_exists();
+        let config_text = if config_exists {
+            egui::RichText::new("Documents configs: Found").color(egui::Color32::GREEN)
+        } else {
+            egui::RichText::new("Documents configs: Not Found").color(egui::Color32::RED)
+        };
 
         let dumps_mb = self.cached_dumps_mb;
         let dumps_text = if dumps_mb > 0 {
@@ -229,9 +241,71 @@ impl MyApp {
             "No crash dumps found".to_string()
         };
 
-        ui.label(dumps_text);
+        let screenshots_mb = self.cached_screenshots_mb;
+        let screenshots_text = if screenshots_mb > 0 {
+            format!("Screenshots found ({}MB)", screenshots_mb)
+        } else {
+            "No screenshots found".to_string()
+        };
+
+        ui.label(config_text);
+
+        /* Crash dumps */
+        ui.horizontal(|ui| {
+            ui.label(&dumps_text);
+            ui.add_space(16.0);
+            if ui.button("Open Folder").clicked() {
+                if self.config.game_path.is_empty() {
+                    self.status = "Cannot open dumps folder: game directory not set".to_string();
+                } else {
+                    utils::open_dumps_folder(&self.config.game_path);
+                    self.status = "Opened dumps folder".to_string();
+                }
+            }
+        });
+
+        /* Screenshots */
+        ui.horizontal(|ui| {
+            ui.label(screenshots_text);
+            ui.add_space(16.0);
+            if ui.button("Open Folder").clicked() {
+                utils::open_screenshots_folder();
+                self.status = "Opened screenshots folder".to_string();
+            }
+        });
+
+        ui.add_space(12.0);
 
         if ui.button("Clear crash dumps").clicked() {
+            if self.config.game_path.is_empty() {
+                self.status = "Cannot clear dumps: game directory not set".to_string();
+            } else {
+                match utils::clear_dumps(&self.config.game_path) {
+                    Ok(_) => {
+                        self.status = "Crash dumps cleared successfully".to_string();
+                        self.cached_dumps_mb =
+                            utils::get_dumps_size_mb(&self.config.game_path).unwrap_or(0u64);
+                    }
+                    Err(e) => {
+                        self.status = format!("Failed to clear dumps: {}", e);
+                    }
+                }
+            }
+        }
+
+        if ui.button("Clear screenshots").clicked() {
+            match utils::clear_screenshots() {
+                Ok(_) => {
+                    self.status = "Screenshots cleared successfully".to_string();
+                    self.cached_screenshots_mb = utils::get_screenshots_size_mb().unwrap_or(0u64);
+                }
+                Err(e) => {
+                    self.status = format!("Failed to clear screenshots: {}", e);
+                }
+            }
+        }
+
+        if ui.button("Clear all").clicked() {
             if self.config.game_path.is_empty() {
                 self.status = "Cannot clear dumps: game directory not set".to_string();
             } else {
@@ -383,9 +457,9 @@ impl eframe::App for MyApp {
             if !self.status.is_empty() {
                 let color =
                     if self.status.starts_with("Valid") || self.status.starts_with("Success") {
-                        egui::Color32::from_rgb(100, 255, 100)
+                        egui::Color32::GREEN
                     } else {
-                        egui::Color32::from_rgb(255, 120, 120)
+                        egui::Color32::RED
                     };
 
                 ui.colored_label(color, &self.status);
