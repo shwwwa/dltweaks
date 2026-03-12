@@ -5,6 +5,8 @@ edition = "2024"
 rust-version = "1.92"
 
 [dependencies]
+anyhow = "1.0.102"
+directories = "6.0.0"
 eframe = { version = "0.33.3", features = [ "default" ] }
 egui = "0.33.3"
 open = "5.3.3"

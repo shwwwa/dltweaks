@@ -1,4 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+pub mod config;
+
+use crate::config::AppConfig;
 use eframe::egui;
 use rfd::FileDialog;
 
@@ -8,7 +11,6 @@ const EXECUTABLE_NAME: &str = "DyingLightGame.exe";
 const NOLOGOS_ARG: &str = "-nologos";
 const HIGHPRIORITY_ARG: &str = "-high";
 const USEALLCORES_ARG: &str = "-useallavailablecores";
-const STEAMLAUNCH: &str = "steam://rungameid/239140";
 
 fn main() -> eframe::Result {
     let options = eframe::NativeOptions {
@@ -21,11 +23,10 @@ fn main() -> eframe::Result {
         options,
         Box::new(|_cc| {
             Ok(Box::new(MyApp {
-                game_path: "".to_string(),
+                config: config::load_config(),
                 status: "".to_string(),
                 launch_args: "".to_string(),
                 show_about: false,
-                use_steam_launch: false,
                 settings: AppSettings::default(),
             }))
         }),
@@ -55,11 +56,10 @@ impl Default for AppSettings {
 
 #[derive(Default)]
 struct MyApp {
-    game_path: String,
+    config: AppConfig,
     status: String,
     launch_args: String,
     show_about: bool,
-    use_steam_launch: bool,
     settings: AppSettings,
 }
 
@@ -76,10 +76,16 @@ fn launch_direct(game_path: &str, settings: &AppSettings, custom_args: &str, sta
     let mut cmd = std::process::Command::new(&exe_path);
     cmd.current_dir(game_path);
 
-    if settings.skip_intro_videos { cmd.arg(NOLOGOS_ARG); }
-    if settings.high_priority { cmd.arg(HIGHPRIORITY_ARG); }
-    if settings.use_all_cores { cmd.arg(USEALLCORES_ARG); }
-    
+    if settings.skip_intro_videos {
+        cmd.arg(NOLOGOS_ARG);
+    }
+    if settings.high_priority {
+        cmd.arg(HIGHPRIORITY_ARG);
+    }
+    if settings.use_all_cores {
+        cmd.arg(USEALLCORES_ARG);
+    }
+
     if !custom_args.is_empty() {
         for arg in custom_args.split_whitespace() {
             cmd.arg(arg);
@@ -114,13 +120,19 @@ impl eframe::App for MyApp {
                 });
 
                 ui.menu_button("Settings", |ui| {
-                    ui.checkbox(&mut self.settings.show_debug_info, "Show debug information");
-                    ui.checkbox(&mut self.settings.dark_mode, "Dark mode (WiP)");
+                    if ui.checkbox(&mut self.settings.show_debug_info, "Show debug information").changed() {
+                        let _ = config::save_config(&self.config);
+                    }
+
+                    if ui.checkbox(&mut self.settings.dark_mode, "Dark mode (WiP)").changed() {
+                        let _ = config::save_config(&self.config);
+                    }
 
                     ui.separator();
 
                     if ui.button("Reset settings").clicked() {
-                        self.settings = Default::default();
+                        self.settings = AppSettings::default();
+                        let _ = config::save_config(&self.config);
                         ui.close();
                     }
                 });
@@ -141,23 +153,24 @@ impl eframe::App for MyApp {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 // Main horizontal layout
                 ui.horizontal(|ui| {
+                    let old_path = self.config.game_path.clone();
+                    
                     ui.add_sized(
                         [ui.available_width() - 160.0, 24.0],
-                        egui::TextEdit::singleline(&mut self.game_path).hint_text(
+                        egui::TextEdit::singleline(&mut self.config.game_path).hint_text(
                             "e.g. C:\\Program Files (x86)\\Steam\\steamapps\\common\\Dying Light",
                         ),
                     );
 
                     if ui.button("Select Game Directory").clicked() {
                         if let Some(path) = FileDialog::new()
-                            .set_directory(&self.game_path)
+                            .set_directory(&self.config.game_path)
                             .pick_folder()
                         {
-                            self.game_path = path.to_string_lossy().into_owned();
+                            self.config.game_path = path.to_string_lossy().into_owned();
 
                             let exe_path =
-                                std::path::Path::new(&self.game_path).join(EXECUTABLE_NAME);
-
+                                std::path::Path::new(&self.config.game_path).join(EXECUTABLE_NAME);
                             if exe_path.exists() {
                                 self.status = "Valid game location".to_string();
                             } else {
@@ -165,12 +178,25 @@ impl eframe::App for MyApp {
                                     "Dying Light executable was not found in selected folder."
                                     .to_string();
                             }
+
+                            if let Err(e) = config::save_config(&self.config) {
+                                self.status = format!("Failed to save config: {}", e);
+                            }
                         }
+                    }
+
+                    // Save if path was edited manually
+                    if self.config.game_path != old_path {
+                        let _ = config::save_config(&self.config);
                     }
                 })
             });
 
-            ui.checkbox(&mut self.use_steam_launch, "Steam launch fallback");
+            if ui.checkbox(&mut self.config.use_steam_launch, "Steam launch fallback").changed()
+            {
+                let _ = config::save_config(&self.config);
+            }
+
             ui.add_space(6.0);
 
             if !self.status.is_empty() {
@@ -186,16 +212,14 @@ impl eframe::App for MyApp {
 
             ui.add_space(6.0);
             if ui.button("Launch Game").clicked() {
-                if self.game_path.is_empty() && !self.use_steam_launch {
+                if self.config.game_path.is_empty() && !self.config.use_steam_launch {
                     self.status =
                         "You can't launch the game while game directory is not set (or use Steam launch fallback).".to_string();
                 }
                 else {
                     let custom_args = self.launch_args.trim();
 
-                    if self.use_steam_launch {
-                        let mut uri = STEAMLAUNCH.to_string();
-                        
+                    if self.config.use_steam_launch {
                         let mut steam_args = Vec::new();
 
                         if self.settings.skip_intro_videos {
@@ -211,11 +235,20 @@ impl eframe::App for MyApp {
                             steam_args.push(custom_args);
                         }
 
-                        if !steam_args.is_empty() {
-                            let args_str = steam_args.join("%20"); // URL-encode spaces
-                            uri.push_str(&format!("?args={}", args_str));
-                        }
-                        
+                        let uri = if steam_args.is_empty() && custom_args.is_empty() {
+                            "steam://run/239140".to_string()
+                        } else {
+                            // Combine checkbox args + custom args into one space-separated string
+                            let mut all_args = steam_args.join(" ");
+                            if !custom_args.is_empty() {
+                                if !all_args.is_empty() {
+                                    all_args.push(' ');
+                                }
+                                all_args.push_str(custom_args);
+                            }
+                            format!("steam://run/239140//{}//", all_args)
+                        };
+
                         match open::that(&uri) {
                             Ok(_) => {
                                 self.status = "Successfully launched via Steam URI (AppID 239140)".to_string();
@@ -226,26 +259,37 @@ impl eframe::App for MyApp {
                         }
                     } else {
                         // Direct game launch
-                        launch_direct(&self.game_path, &self.settings, custom_args, &mut self.status);
+                        launch_direct(&self.config.game_path, &self.settings, custom_args, &mut self.status);
                     }
                 }
             }
             ui.separator();
 
             ui.horizontal(|ui| {
-                ui.checkbox(&mut self.settings.skip_intro_videos, "Skip intro videos");
-                ui.checkbox(&mut self.settings.high_priority, "High process priority");
-                ui.checkbox(&mut self.settings.use_all_cores, "Use all CPU cores");
+                if ui.checkbox(&mut self.settings.skip_intro_videos, "Skip intro videos").changed() {
+                    let _ = config::save_config(&self.config);
+                }
+                if ui.checkbox(&mut self.settings.high_priority, "High process priority").changed() {
+                    let _ = config::save_config(&self.config);
+                }
+                if ui.checkbox(&mut self.settings.use_all_cores, "Use all CPU cores").changed() {
+                    let _ = config::save_config(&self.config);
+                }
             });
 
             ui.horizontal(|ui| {
                 ui.label("Launch arguments:");
+                let old_args = self.launch_args.clone();
                 ui.add_sized(
                     [ui.available_width() - 120.0, 28.0],
                     egui::TextEdit::singleline(&mut self.launch_args)
                         .hint_text("Enter launch arguments")
                         .desired_width(300.0),
                 );
+
+                if self.launch_args != old_args {
+                    let _ = config::save_config(&self.config);
+                }
             });
         });
 
@@ -269,4 +313,10 @@ impl eframe::App for MyApp {
                 });
             });
     }
+
+    /// Save on app close for extra safety
+    fn save(&mut self, _storage: &mut dyn eframe::Storage) {
+        let _ = config::save_config(&self.config);
+    }
+    
 }
