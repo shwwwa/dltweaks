@@ -47,7 +47,7 @@ fn main() -> eframe::Result {
     app.cached_logs_mb = l_mb;
     app.cached_logs_count = l_count;
 
-    eframe::run_native(&PROGRAM_NAME, options, Box::new(|_cc| Ok(Box::new(app))))
+    eframe::run_native(PROGRAM_NAME, options, Box::new(|_cc| Ok(Box::new(app))))
 }
 
 struct AppSettings {
@@ -375,31 +375,22 @@ impl MyApp {
                 if self.config.game_path.is_empty() {
                     self.status = "Cannot clear all dumps: game directory not set".to_string();
                 } else {
-                    match utils::clear_dumps(&self.config.game_path) {
-                        Ok(_) => {
-                            let (mb, count) = utils::get_dumps_stats(&self.config.game_path);
-                            self.cached_dumps_mb = mb;
-                            self.cached_dumps_count = count;
-                        }
-                        Err(_) => {}
+                    if utils::clear_dumps(&self.config.game_path).is_ok() {
+                        let (mb, count) = utils::get_dumps_stats(&self.config.game_path);
+                        self.cached_dumps_mb = mb;
+                        self.cached_dumps_count = count;
                     }
 
-                    match utils::clear_screenshots() {
-                        Ok(_) => {
-                            let (mb, count) = utils::get_screenshots_stats();
-                            self.cached_screenshots_mb = mb;
-                            self.cached_screenshots_count = count;
-                        }
-                        Err(_) => {}
+                    if utils::clear_screenshots().is_ok() {
+                        let (mb, count) = utils::get_screenshots_stats();
+                        self.cached_screenshots_mb = mb;
+                        self.cached_screenshots_count = count;
                     }
 
-                    match utils::clear_logs() {
-                        Ok(_) => {
-                            let (mb, count) = utils::get_logs_stats();
-                            self.cached_logs_mb = mb;
-                            self.cached_logs_count = count;
-                        }
-                        Err(_) => {}
+                    if utils::clear_logs().is_ok() {
+                        let (mb, count) = utils::get_logs_stats();
+                        self.cached_logs_mb = mb;
+                        self.cached_logs_count = count;
                     }
 
                     self.status = "All cleared successfully".to_string();
