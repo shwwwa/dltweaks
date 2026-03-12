@@ -26,11 +26,13 @@ fn main() -> eframe::Result {
         settings: AppSettings::default(),
         cached_dumps_mb: 0,
         cached_screenshots_mb: 0,
+        cached_logs_mb: 0,
     };
 
     if !app.config.game_path.is_empty() {
         app.cached_dumps_mb = utils::get_dumps_size_mb(&app.config.game_path).unwrap_or(0u64);
         app.cached_screenshots_mb = utils::get_screenshots_size_mb().unwrap_or(0u64);
+        app.cached_logs_mb = utils::get_logs_size_mb().unwrap_or(0u64);
     }
 
     eframe::run_native(&PROGRAM_NAME, options, Box::new(|_cc| Ok(Box::new(app))))
@@ -67,6 +69,7 @@ struct MyApp {
     settings: AppSettings,
     cached_dumps_mb: u64,
     cached_screenshots_mb: u64,
+    cached_logs_mb: u64,
 }
 
 /** Launches DL1 via steam://uri wrapper. */
@@ -248,6 +251,13 @@ impl MyApp {
             "No screenshots found".to_string()
         };
 
+        let logs_mb = self.cached_logs_mb;
+        let logs_text = if logs_mb > 0 {
+            format!("Logs found ({}MB)", logs_mb)
+        } else {
+            "No logs found".to_string()
+        };
+
         ui.label(config_text);
 
         /* Crash dumps */
@@ -271,6 +281,16 @@ impl MyApp {
             if ui.button("Open Folder").clicked() {
                 utils::open_screenshots_folder();
                 self.status = "Opened screenshots folder".to_string();
+            }
+        });
+
+        /* Logs */
+        ui.horizontal(|ui| {
+            ui.label(logs_text);
+            ui.add_space(16.0);
+            if ui.button("Open Folder").clicked() {
+                utils::open_logs_folder();
+                self.status = "Opened logs folder".to_string();
             }
         });
 
@@ -305,9 +325,21 @@ impl MyApp {
             }
         }
 
+        if ui.button("Clear logs").clicked() {
+            match utils::clear_logs() {
+                Ok(_) => {
+                    self.status = "Logs cleared successfully".to_string();
+                    self.cached_logs_mb = utils::get_logs_size_mb().unwrap_or(0u64);
+                }
+                Err(e) => {
+                    self.status = format!("Failed to clear logs: {}", e);
+                }
+            }
+        }
+
         if ui.button("Clear all").clicked() {
             if self.config.game_path.is_empty() {
-                self.status = "Cannot clear dumps: game directory not set".to_string();
+                self.status = "Cannot clear all dumps: game directory not set".to_string();
             } else {
                 match utils::clear_dumps(&self.config.game_path) {
                     Ok(_) => {
@@ -319,6 +351,29 @@ impl MyApp {
                         self.status = format!("Failed to clear dumps: {}", e);
                     }
                 }
+
+                match utils::clear_screenshots() {
+                    Ok(_) => {
+                        self.status = "Screenshots cleared successfully".to_string();
+                        self.cached_screenshots_mb =
+                            utils::get_screenshots_size_mb().unwrap_or(0u64);
+                    }
+                    Err(e) => {
+                        self.status = format!("Failed to clear screenshots: {}", e);
+                    }
+                }
+
+                match utils::clear_logs() {
+                    Ok(_) => {
+                        self.status = "Logs cleared successfully".to_string();
+                        self.cached_logs_mb = utils::get_logs_size_mb().unwrap_or(0u64);
+                    }
+                    Err(e) => {
+                        self.status = format!("Failed to clear logs: {}", e);
+                    }
+                }
+
+                self.status = "All cleared successfully".to_string();
             }
         }
     }
