@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 pub mod config;
+pub mod utils;
 
 use crate::config::AppConfig;
 use eframe::egui;
@@ -7,7 +8,6 @@ use rfd::FileDialog;
 
 const PROGRAM_NAME: &str = "Dying Light Tweaks";
 const EXECUTABLE_NAME: &str = "DyingLightGame.exe";
-
 const NOLOGOS_ARG: &str = "-nologos";
 const HIGHPRIORITY_ARG: &str = "-high";
 const USEALLCORES_ARG: &str = "-useallavailablecores";
@@ -63,7 +63,45 @@ struct MyApp {
     settings: AppSettings,
 }
 
-impl MyApp {}
+fn launch_steam(settings: &AppSettings, custom_args: &str, status: &mut String) {
+    let mut steam_args = Vec::new();
+
+    if settings.skip_intro_videos {
+        steam_args.push(NOLOGOS_ARG);
+    }
+    if settings.high_priority {
+        steam_args.push(HIGHPRIORITY_ARG);
+    }
+    if settings.use_all_cores {
+        steam_args.push(USEALLCORES_ARG);
+    }
+    if !custom_args.is_empty() {
+        steam_args.push(custom_args);
+    }
+
+    let uri = if steam_args.is_empty() && custom_args.is_empty() {
+        "steam://run/239140".to_string()
+    } else {
+        // Combine checkbox args + custom args into one space-separated string
+        let mut all_args = steam_args.join(" ");
+        if !custom_args.is_empty() {
+            if !all_args.is_empty() {
+                all_args.push(' ');
+            }
+            all_args.push_str(custom_args);
+        }
+        format!("steam://run/239140//{}//", all_args)
+    };
+
+    match open::that(&uri) {
+        Ok(_) => {
+            *status = "Successfully launched via Steam URI (AppID 239140)".to_string();
+        }
+        Err(e) => {
+            *status = format!("Steam launch failed: {}", e);
+        }
+    }
+}
 
 fn launch_direct(game_path: &str, settings: &AppSettings, custom_args: &str, status: &mut String) {
     let exe_path = std::path::Path::new(game_path).join(EXECUTABLE_NAME);
@@ -102,6 +140,33 @@ fn launch_direct(game_path: &str, settings: &AppSettings, custom_args: &str, sta
     }
 }
 
+impl MyApp {
+    /** Shows label if memory<=required_mb on game drive. */
+    fn show_label_on_limited_memory(&self, ui: &mut egui::Ui) {
+        if let Some(free_mb) = utils::get_free_space_mb(&self.config.game_path) {
+            let needed_mb: u64 = 200;
+            let buffer_mb: u64 = needed_mb + 100;
+
+            if free_mb < needed_mb + buffer_mb {
+                if free_mb < needed_mb {
+                    let msg = format!("You have {}MB free on game drive. Game may crash during launch/gameplay if you don't have at least {}MB more.", free_mb, needed_mb - free_mb);
+                    ui.colored_label(
+                        egui::Color32::RED,
+                        egui::RichText::new(msg).size(15.0).strong(),
+                    );
+                } else {
+                    let msg = format!("Warning: you have {}MB free on game drive. Game will run fine, but you're getting closer to requirement of {}MB free space.", free_mb, needed_mb);
+                    ui.colored_label(
+                        egui::Color32::from_rgb(255, 140, 0), // orange-red warning
+                        egui::RichText::new(msg).size(15.0).strong(),
+                    );
+                }
+            }
+        }
+        // we could add a label when we can't reach the memory, but it is optional feature so we do need to.
+    }
+}
+
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         if self.settings.dark_mode {
@@ -120,18 +185,25 @@ impl eframe::App for MyApp {
                 });
 
                 ui.menu_button("Settings", |ui| {
-                    if ui.checkbox(&mut self.settings.show_debug_info, "Show debug information").changed() {
+                    if ui
+                        .checkbox(&mut self.settings.show_debug_info, "Show debug information")
+                        .changed()
+                    {
                         let _ = config::save_config(&self.config);
                     }
 
-                    if ui.checkbox(&mut self.settings.dark_mode, "Dark mode (WiP)").changed() {
+                    if ui
+                        .checkbox(&mut self.settings.dark_mode, "Dark mode (WiP)")
+                        .changed()
+                    {
                         let _ = config::save_config(&self.config);
                     }
 
                     ui.separator();
 
                     if ui.button("Reset settings").clicked() {
-                        self.settings = AppSettings::default();
+                        self.config.show_debug_info = false;
+                        self.config.dark_mode = true;
                         let _ = config::save_config(&self.config);
                         ui.close();
                     }
@@ -154,7 +226,7 @@ impl eframe::App for MyApp {
                 // Main horizontal layout
                 ui.horizontal(|ui| {
                     let old_path = self.config.game_path.clone();
-                    
+
                     ui.add_sized(
                         [ui.available_width() - 160.0, 24.0],
                         egui::TextEdit::singleline(&mut self.config.game_path).hint_text(
@@ -192,7 +264,7 @@ impl eframe::App for MyApp {
                 })
             });
 
-            if ui.checkbox(&mut self.config.use_steam_launch, "Steam launch fallback").changed()
+            if ui.checkbox(&mut self.config.use_steam_launch, "Use steam launch (fallback)").changed()
             {
                 let _ = config::save_config(&self.config);
             }
@@ -210,59 +282,46 @@ impl eframe::App for MyApp {
                 ui.colored_label(color, &self.status);
             }
 
+            if !self.config.game_path.is_empty() {
+                self.show_label_on_limited_memory(ui);
+            }
+
             ui.add_space(6.0);
-            if ui.button("Launch Game").clicked() {
-                if self.config.game_path.is_empty() && !self.config.use_steam_launch {
-                    self.status =
-                        "You can't launch the game while game directory is not set (or use Steam launch fallback).".to_string();
-                }
-                else {
-                    let custom_args = self.launch_args.trim();
 
-                    if self.config.use_steam_launch {
-                        let mut steam_args = Vec::new();
+            ui.horizontal(|ui| {
+                if ui.button("Launch Game").clicked() {
+                    if self.config.game_path.is_empty() && !self.config.use_steam_launch {
+                        self.status =
+                            "You can't launch the game while game directory is not set (or use Steam launch fallback).".to_string();
+                    }
+                    else {
+                        let custom_args = self.launch_args.trim();
 
-                        if self.settings.skip_intro_videos {
-                            steam_args.push(NOLOGOS_ARG);
-                        }
-                        if self.settings.high_priority {
-                            steam_args.push(HIGHPRIORITY_ARG);
-                        }
-                        if self.settings.use_all_cores {
-                            steam_args.push(USEALLCORES_ARG);
-                        }
-                        if !custom_args.is_empty() {
-                            steam_args.push(custom_args);
-                        }
-
-                        let uri = if steam_args.is_empty() && custom_args.is_empty() {
-                            "steam://run/239140".to_string()
+                        if self.config.use_steam_launch {
+                            launch_steam(&self.settings, custom_args, &mut self.status);
                         } else {
-                            // Combine checkbox args + custom args into one space-separated string
-                            let mut all_args = steam_args.join(" ");
-                            if !custom_args.is_empty() {
-                                if !all_args.is_empty() {
-                                    all_args.push(' ');
-                                }
-                                all_args.push_str(custom_args);
-                            }
-                            format!("steam://run/239140//{}//", all_args)
-                        };
-
-                        match open::that(&uri) {
-                            Ok(_) => {
-                                self.status = "Successfully launched via Steam URI (AppID 239140)".to_string();
-                            }
-                            Err(e) => {
-                                self.status = format!("Steam launch failed: {}", e);
-                            }
+                            launch_direct(&self.config.game_path, &self.settings, custom_args, &mut self.status);
                         }
-                    } else {
-                        // Direct game launch
-                        launch_direct(&self.config.game_path, &self.settings, custom_args, &mut self.status);
                     }
                 }
-            }
+
+                if ui.button("Launch Game w/o args").clicked() {
+                    if self.config.game_path.is_empty() && !self.config.use_steam_launch {
+                        self.status =
+                            "You can't launch the game while game directory is not set (or use Steam launch fallback).".to_string();
+                    }
+                    else {
+                        let custom_args = self.launch_args.trim();
+
+                        if self.config.use_steam_launch {
+                            launch_steam(&self.settings, custom_args, &mut self.status);
+                        } else {
+                            launch_direct(&self.config.game_path, &self.settings, custom_args, &mut self.status);
+                        }
+                    }
+                }
+            });
+
             ui.separator();
 
             ui.horizontal(|ui| {
@@ -279,22 +338,17 @@ impl eframe::App for MyApp {
 
             ui.horizontal(|ui| {
                 ui.label("Launch arguments:");
-                let old_args = self.launch_args.clone();
                 ui.add_sized(
                     [ui.available_width() - 120.0, 28.0],
                     egui::TextEdit::singleline(&mut self.launch_args)
                         .hint_text("Enter launch arguments")
                         .desired_width(300.0),
                 );
-
-                if self.launch_args != old_args {
-                    let _ = config::save_config(&self.config);
-                }
             });
         });
 
         // About window logic
-        egui::Window::new("About DL Tweaks")
+        egui::Window::new("About Dying Light Tweaks")
             .open(&mut self.show_about)
             .resizable(false)
             .collapsible(false)
@@ -305,9 +359,8 @@ impl eframe::App for MyApp {
                     ui.add_space(12.0);
 
                     ui.label(egui::RichText::new("Made by caffidev").strong());
-                    ui.label("A simple ".to_string() + PROGRAM_NAME + " Manager");
+                    ui.label(format!("A simple {} Manager", PROGRAM_NAME));
                     ui.add_space(8.0);
-
                     ui.hyperlink_to("GitHub", "https://github.com/shwwwa/dltweaks");
                     ui.add_space(12.0);
                 });
@@ -318,5 +371,4 @@ impl eframe::App for MyApp {
     fn save(&mut self, _storage: &mut dyn eframe::Storage) {
         let _ = config::save_config(&self.config);
     }
-    
 }
