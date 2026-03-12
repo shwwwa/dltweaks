@@ -18,25 +18,27 @@ fn main() -> eframe::Result {
         ..Default::default()
     };
 
-    eframe::run_native(
-        &PROGRAM_NAME,
-        options,
-        Box::new(|_cc| {
-            Ok(Box::new(MyApp {
-                config: config::load_config(),
-                status: "".to_string(),
-                launch_args: "".to_string(),
-                show_about: false,
-                settings: AppSettings::default(),
-            }))
-        }),
-    )
+    let mut app = MyApp {
+        config: config::load_config(),
+        status: "".to_string(),
+        launch_args: "".to_string(),
+        show_about: false,
+        settings: AppSettings::default(),
+        cached_dumps_mb: 0,
+    };
+
+    if !app.config.game_path.is_empty() {
+        app.cached_dumps_mb = utils::get_dumps_size_mb(&app.config.game_path).unwrap_or(0u64);
+    }
+
+    eframe::run_native(&PROGRAM_NAME, options, Box::new(|_cc| Ok(Box::new(app))))
 }
 
 struct AppSettings {
+    /* App settings located in menu bar. */
     show_debug_info: bool,
     dark_mode: bool,
-    /* Game launch args */
+    /* Game additional launch args. */
     skip_intro_videos: bool,
     high_priority: bool,
     use_all_cores: bool,
@@ -61,6 +63,7 @@ struct MyApp {
     launch_args: String,
     show_about: bool,
     settings: AppSettings,
+    cached_dumps_mb: u64,
 }
 
 fn launch_steam(settings: &AppSettings, custom_args: &str, status: &mut String) {
@@ -141,6 +144,55 @@ fn launch_direct(game_path: &str, settings: &AppSettings, custom_args: &str, sta
 }
 
 impl MyApp {
+    /** Shows launch buttons and handles their's logic. */
+    fn handle_launch_buttons(&mut self, ui: &mut egui::Ui) {
+        if ui.button("Launch Game").clicked() {
+            if self.config.game_path.is_empty() && !self.config.use_steam_launch {
+                self.status =
+                    "You can't launch the game while game directory is not set (or use Steam launch fallback).".to_string();
+            } else {
+                let custom_args = self.launch_args.trim();
+
+                if self.config.use_steam_launch {
+                    launch_steam(&self.settings, custom_args, &mut self.status);
+                } else {
+                    launch_direct(
+                        &self.config.game_path,
+                        &self.settings,
+                        custom_args,
+                        &mut self.status,
+                    );
+                }
+
+                self.cached_dumps_mb =
+                    utils::get_dumps_size_mb(&self.config.game_path).unwrap_or(0u64);
+            }
+        }
+
+        if ui.button("Launch Game w/o args").clicked() {
+            if self.config.game_path.is_empty() && !self.config.use_steam_launch {
+                self.status =
+                    "You can't launch the game while game directory is not set (or use Steam launch fallback).".to_string();
+            } else {
+                let custom_args = self.launch_args.trim();
+
+                if self.config.use_steam_launch {
+                    launch_steam(&self.settings, custom_args, &mut self.status);
+                } else {
+                    launch_direct(
+                        &self.config.game_path,
+                        &self.settings,
+                        custom_args,
+                        &mut self.status,
+                    );
+                }
+
+                self.cached_dumps_mb =
+                    utils::get_dumps_size_mb(&self.config.game_path).unwrap_or(0u64);
+            }
+        }
+    }
+
     /** Shows label if memory<=required_mb on game drive. */
     fn show_label_on_limited_memory(&self, ui: &mut egui::Ui) {
         if let Some(free_mb) = utils::get_free_space_mb(&self.config.game_path) {
@@ -164,6 +216,58 @@ impl MyApp {
             }
         }
         // we could add a label when we can't reach the memory, but it is optional feature so we do need to.
+    }
+
+    /** Shows cleanup UI (dumps, screenshots, logs). */
+    fn show_cleanup_ui(&mut self, ui: &mut egui::Ui) {
+        ui.heading("Cleanup");
+
+        let dumps_mb = self.cached_dumps_mb;
+        let dumps_text = if dumps_mb > 0 {
+            format!("Crash dumps found ({}MB)", dumps_mb)
+        } else {
+            "No crash dumps found".to_string()
+        };
+
+        ui.label(dumps_text);
+
+        if ui.button("Clear crash dumps").clicked() {
+            if self.config.game_path.is_empty() {
+                self.status = "Cannot clear dumps: game directory not set".to_string();
+            } else {
+                match utils::clear_dumps(&self.config.game_path) {
+                    Ok(_) => {
+                        self.status = "Crash dumps cleared successfully".to_string();
+                        self.cached_dumps_mb =
+                            utils::get_dumps_size_mb(&self.config.game_path).unwrap_or(0u64);
+                    }
+                    Err(e) => {
+                        self.status = format!("Failed to clear dumps: {}", e);
+                    }
+                }
+            }
+        }
+    }
+
+    /** Draws about window when it is needed. */
+    fn handle_about_window(&mut self, ctx: &egui::Context) {
+        egui::Window::new("About Dying Light Tweaks")
+            .open(&mut self.show_about)
+            .resizable(false)
+            .collapsible(false)
+            .show(ctx, |ui| {
+                ui.vertical_centered(|ui| {
+                    ui.heading(PROGRAM_NAME);
+                    ui.label("Version 0.1.0");
+                    ui.add_space(12.0);
+
+                    ui.label(egui::RichText::new("Made by caffidev").strong());
+                    ui.label(format!("A simple {} Manager", PROGRAM_NAME));
+                    ui.add_space(8.0);
+                    ui.hyperlink_to("GitHub", "https://github.com/shwwwa/dltweaks");
+                    ui.add_space(12.0);
+                });
+            });
     }
 }
 
@@ -248,7 +352,7 @@ impl eframe::App for MyApp {
                             } else {
                                 self.status =
                                     "Dying Light executable was not found in selected folder."
-                                    .to_string();
+                                        .to_string();
                             }
 
                             if let Err(e) = config::save_config(&self.config) {
@@ -264,7 +368,12 @@ impl eframe::App for MyApp {
                 })
             });
 
-            if ui.checkbox(&mut self.config.use_steam_launch, "Use steam launch (fallback)").changed()
+            if ui
+                .checkbox(
+                    &mut self.config.use_steam_launch,
+                    "Use steam launch (fallback)",
+                )
+                .changed()
             {
                 let _ = config::save_config(&self.config);
             }
@@ -289,49 +398,28 @@ impl eframe::App for MyApp {
             ui.add_space(6.0);
 
             ui.horizontal(|ui| {
-                if ui.button("Launch Game").clicked() {
-                    if self.config.game_path.is_empty() && !self.config.use_steam_launch {
-                        self.status =
-                            "You can't launch the game while game directory is not set (or use Steam launch fallback).".to_string();
-                    }
-                    else {
-                        let custom_args = self.launch_args.trim();
-
-                        if self.config.use_steam_launch {
-                            launch_steam(&self.settings, custom_args, &mut self.status);
-                        } else {
-                            launch_direct(&self.config.game_path, &self.settings, custom_args, &mut self.status);
-                        }
-                    }
-                }
-
-                if ui.button("Launch Game w/o args").clicked() {
-                    if self.config.game_path.is_empty() && !self.config.use_steam_launch {
-                        self.status =
-                            "You can't launch the game while game directory is not set (or use Steam launch fallback).".to_string();
-                    }
-                    else {
-                        let custom_args = self.launch_args.trim();
-
-                        if self.config.use_steam_launch {
-                            launch_steam(&self.settings, custom_args, &mut self.status);
-                        } else {
-                            launch_direct(&self.config.game_path, &self.settings, custom_args, &mut self.status);
-                        }
-                    }
-                }
+                self.handle_launch_buttons(ui);
             });
 
             ui.separator();
 
             ui.horizontal(|ui| {
-                if ui.checkbox(&mut self.settings.skip_intro_videos, "Skip intro videos").changed() {
+                if ui
+                    .checkbox(&mut self.settings.skip_intro_videos, "Skip intro videos")
+                    .changed()
+                {
                     let _ = config::save_config(&self.config);
                 }
-                if ui.checkbox(&mut self.settings.high_priority, "High process priority").changed() {
+                if ui
+                    .checkbox(&mut self.settings.high_priority, "High process priority")
+                    .changed()
+                {
                     let _ = config::save_config(&self.config);
                 }
-                if ui.checkbox(&mut self.settings.use_all_cores, "Use all CPU cores").changed() {
+                if ui
+                    .checkbox(&mut self.settings.use_all_cores, "Use all CPU cores")
+                    .changed()
+                {
                     let _ = config::save_config(&self.config);
                 }
             });
@@ -345,26 +433,11 @@ impl eframe::App for MyApp {
                         .desired_width(300.0),
                 );
             });
+
+            self.show_cleanup_ui(ui);
         });
 
-        // About window logic
-        egui::Window::new("About Dying Light Tweaks")
-            .open(&mut self.show_about)
-            .resizable(false)
-            .collapsible(false)
-            .show(ctx, |ui| {
-                ui.vertical_centered(|ui| {
-                    ui.heading(PROGRAM_NAME);
-                    ui.label("Version 0.1.0");
-                    ui.add_space(12.0);
-
-                    ui.label(egui::RichText::new("Made by caffidev").strong());
-                    ui.label(format!("A simple {} Manager", PROGRAM_NAME));
-                    ui.add_space(8.0);
-                    ui.hyperlink_to("GitHub", "https://github.com/shwwwa/dltweaks");
-                    ui.add_space(12.0);
-                });
-            });
+        self.handle_about_window(ctx);
     }
 
     /// Save on app close for extra safety
