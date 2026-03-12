@@ -24,16 +24,28 @@ fn main() -> eframe::Result {
         launch_args: "".to_string(),
         show_about: false,
         settings: AppSettings::default(),
-        cached_dumps_mb: 0,
-        cached_screenshots_mb: 0,
-        cached_logs_mb: 0,
+        /* Cached app stats */
+        cached_dumps_mb: 0.0,
+        cached_dumps_count: 0,
+        cached_screenshots_mb: 0.0,
+        cached_screenshots_count: 0,
+        cached_logs_mb: 0.0,
+        cached_logs_count: 0,
     };
 
     if !app.config.game_path.is_empty() {
-        app.cached_dumps_mb = utils::get_dumps_size_mb(&app.config.game_path).unwrap_or(0u64);
-        app.cached_screenshots_mb = utils::get_screenshots_size_mb().unwrap_or(0u64);
-        app.cached_logs_mb = utils::get_logs_size_mb().unwrap_or(0u64);
+        let (d_mb, d_count) = utils::get_dumps_stats(&app.config.game_path);
+        app.cached_dumps_mb = d_mb;
+        app.cached_dumps_count = d_count;
     }
+
+    let (s_mb, s_count) = utils::get_screenshots_stats();
+    app.cached_screenshots_mb = s_mb;
+    app.cached_screenshots_count = s_count;
+
+    let (l_mb, l_count) = utils::get_logs_stats();
+    app.cached_logs_mb = l_mb;
+    app.cached_logs_count = l_count;
 
     eframe::run_native(&PROGRAM_NAME, options, Box::new(|_cc| Ok(Box::new(app))))
 }
@@ -67,9 +79,12 @@ struct MyApp {
     launch_args: String,
     show_about: bool,
     settings: AppSettings,
-    cached_dumps_mb: u64,
-    cached_screenshots_mb: u64,
-    cached_logs_mb: u64,
+    cached_dumps_mb: f64,
+    cached_dumps_count: usize,
+    cached_screenshots_mb: f64,
+    cached_screenshots_count: usize,
+    cached_logs_mb: f64,
+    cached_logs_count: usize,
 }
 
 /** Launches DL1 via steam://uri wrapper. */
@@ -152,6 +167,21 @@ fn launch_direct(game_path: &str, settings: &AppSettings, custom_args: &str, sta
 }
 
 impl MyApp {
+    /** Recalculates and caches file stats for cleanup. */
+    fn cache_file_stats(&mut self) {
+        let (d_mb, d_count) = utils::get_dumps_stats(&self.config.game_path);
+        self.cached_dumps_mb = d_mb;
+        self.cached_dumps_count = d_count;
+
+        let (s_mb, s_count) = utils::get_screenshots_stats();
+        self.cached_screenshots_mb = s_mb;
+        self.cached_screenshots_count = s_count;
+
+        let (l_mb, l_count) = utils::get_logs_stats();
+        self.cached_logs_mb = l_mb;
+        self.cached_logs_count = l_count;
+    }
+
     /** Shows launch buttons and handles their's logic. */
     fn show_launch_buttons(&mut self, ui: &mut egui::Ui) {
         if ui.button("Launch Game").clicked() {
@@ -172,8 +202,7 @@ impl MyApp {
                     );
                 }
 
-                self.cached_dumps_mb =
-                    utils::get_dumps_size_mb(&self.config.game_path).unwrap_or(0u64);
+                self.cache_file_stats();
             }
         }
 
@@ -195,8 +224,7 @@ impl MyApp {
                     );
                 }
 
-                self.cached_dumps_mb =
-                    utils::get_dumps_size_mb(&self.config.game_path).unwrap_or(0u64);
+                self.cache_file_stats();
             }
         }
     }
@@ -237,32 +265,20 @@ impl MyApp {
             egui::RichText::new("Documents configs: Not Found").color(egui::Color32::RED)
         };
 
-        let dumps_mb = self.cached_dumps_mb;
-        let dumps_text = if dumps_mb > 0 {
-            format!("Crash dumps found ({}MB)", dumps_mb)
-        } else {
-            "No crash dumps found".to_string()
-        };
-
-        let screenshots_mb = self.cached_screenshots_mb;
-        let screenshots_text = if screenshots_mb > 0 {
-            format!("Screenshots found ({}MB)", screenshots_mb)
-        } else {
-            "No screenshots found".to_string()
-        };
-
-        let logs_mb = self.cached_logs_mb;
-        let logs_text = if logs_mb > 0 {
-            format!("Logs found ({}MB)", logs_mb)
-        } else {
-            "No logs found".to_string()
-        };
-
         ui.label(config_text);
 
         /* Crash dumps */
         ui.horizontal(|ui| {
-            ui.label(&dumps_text);
+            let mb = self.cached_dumps_mb;
+            let count = self.cached_dumps_count;
+            let text = if count == 0 {
+                "No crash dumps found".to_string()
+            } else {
+                format!("Crash dumps: {:.1} MB ({} files)", mb, count)
+            };
+
+            ui.label(text);
+
             ui.add_space(16.0);
             if ui.button("Open Folder").clicked() {
                 if self.config.game_path.is_empty() {
@@ -276,7 +292,16 @@ impl MyApp {
 
         /* Screenshots */
         ui.horizontal(|ui| {
-            ui.label(screenshots_text);
+            let mb = self.cached_screenshots_mb;
+            let count = self.cached_screenshots_count;
+            let text = if count == 0 {
+                "No screenshots found".to_string()
+            } else {
+                format!("Screenshots: {:.1} MB ({} files)", mb, count)
+            };
+
+            ui.label(text);
+
             ui.add_space(16.0);
             if ui.button("Open Folder").clicked() {
                 utils::open_screenshots_folder();
@@ -286,7 +311,16 @@ impl MyApp {
 
         /* Logs */
         ui.horizontal(|ui| {
-            ui.label(logs_text);
+            let mb = self.cached_logs_mb;
+            let count = self.cached_logs_count;
+            let text = if count == 0 {
+                "No logs found".to_string()
+            } else {
+                format!("Logs: {:.1} MB ({} files)", mb, count)
+            };
+
+            ui.label(text);
+
             ui.add_space(16.0);
             if ui.button("Open Folder").clicked() {
                 utils::open_logs_folder();
@@ -296,88 +330,83 @@ impl MyApp {
 
         ui.add_space(12.0);
 
-        if ui.button("Clear crash dumps").clicked() {
-            if self.config.game_path.is_empty() {
-                self.status = "Cannot clear dumps: game directory not set".to_string();
-            } else {
-                match utils::clear_dumps(&self.config.game_path) {
-                    Ok(_) => {
-                        self.status = "Crash dumps cleared successfully".to_string();
-                        self.cached_dumps_mb =
-                            utils::get_dumps_size_mb(&self.config.game_path).unwrap_or(0u64);
-                    }
-                    Err(e) => {
-                        self.status = format!("Failed to clear dumps: {}", e);
+        ui.horizontal_wrapped(|ui| {
+            if ui.button("Clear crash dumps").clicked() {
+                if self.config.game_path.is_empty() {
+                    self.status = "Cannot clear dumps: game directory not set".to_string();
+                } else {
+                    match utils::clear_dumps(&self.config.game_path) {
+                        Ok(_) => {
+                            self.status = "Crash dumps cleared".to_string();
+                            let (mb, count) = utils::get_dumps_stats(&self.config.game_path);
+                            self.cached_dumps_mb = mb;
+                            self.cached_dumps_count = count;
+                        }
+                        Err(e) => self.status = format!("Failed to clear dumps: {}", e),
                     }
                 }
             }
-        }
 
-        if ui.button("Clear screenshots").clicked() {
-            match utils::clear_screenshots() {
-                Ok(_) => {
-                    self.status = "Screenshots cleared successfully".to_string();
-                    self.cached_screenshots_mb = utils::get_screenshots_size_mb().unwrap_or(0u64);
-                }
-                Err(e) => {
-                    self.status = format!("Failed to clear screenshots: {}", e);
-                }
-            }
-        }
-
-        if ui.button("Clear logs").clicked() {
-            match utils::clear_logs() {
-                Ok(_) => {
-                    self.status = "Logs cleared successfully".to_string();
-                    self.cached_logs_mb = utils::get_logs_size_mb().unwrap_or(0u64);
-                }
-                Err(e) => {
-                    self.status = format!("Failed to clear logs: {}", e);
-                }
-            }
-        }
-
-        if ui.button("Clear all").clicked() {
-            if self.config.game_path.is_empty() {
-                self.status = "Cannot clear all dumps: game directory not set".to_string();
-            } else {
-                match utils::clear_dumps(&self.config.game_path) {
-                    Ok(_) => {
-                        self.status = "Crash dumps cleared successfully".to_string();
-                        self.cached_dumps_mb =
-                            utils::get_dumps_size_mb(&self.config.game_path).unwrap_or(0u64);
-                    }
-                    Err(e) => {
-                        self.status = format!("Failed to clear dumps: {}", e);
-                    }
-                }
-
+            if ui.button("Clear screenshots").clicked() {
                 match utils::clear_screenshots() {
                     Ok(_) => {
                         self.status = "Screenshots cleared successfully".to_string();
-                        self.cached_screenshots_mb =
-                            utils::get_screenshots_size_mb().unwrap_or(0u64);
+                        let (mb, count) = utils::get_screenshots_stats();
+                        self.cached_screenshots_mb = mb;
+                        self.cached_screenshots_count = count;
                     }
-                    Err(e) => {
-                        self.status = format!("Failed to clear screenshots: {}", e);
-                    }
+                    Err(e) => self.status = format!("Failed to clear screenshots: {}", e),
                 }
+            }
 
+            if ui.button("Clear logs").clicked() {
                 match utils::clear_logs() {
                     Ok(_) => {
                         self.status = "Logs cleared successfully".to_string();
-                        self.cached_logs_mb = utils::get_logs_size_mb().unwrap_or(0u64);
+                        let (mb, count) = utils::get_logs_stats();
+                        self.cached_logs_mb = mb;
+                        self.cached_logs_count = count;
                     }
-                    Err(e) => {
-                        self.status = format!("Failed to clear logs: {}", e);
-                    }
+                    Err(e) => self.status = format!("Failed to clear logs: {}", e),
                 }
-
-                self.status = "All cleared successfully".to_string();
             }
-        }
-    }
 
+            if ui.button("Clear all").clicked() {
+                if self.config.game_path.is_empty() {
+                    self.status = "Cannot clear all dumps: game directory not set".to_string();
+                } else {
+                    match utils::clear_dumps(&self.config.game_path) {
+                        Ok(_) => {
+                            let (mb, count) = utils::get_dumps_stats(&self.config.game_path);
+                            self.cached_dumps_mb = mb;
+                            self.cached_dumps_count = count;
+                        }
+                        Err(_) => {}
+                    }
+
+                    match utils::clear_screenshots() {
+                        Ok(_) => {
+                            let (mb, count) = utils::get_screenshots_stats();
+                            self.cached_screenshots_mb = mb;
+                            self.cached_screenshots_count = count;
+                        }
+                        Err(_) => {}
+                    }
+
+                    match utils::clear_logs() {
+                        Ok(_) => {
+                            let (mb, count) = utils::get_logs_stats();
+                            self.cached_logs_mb = mb;
+                            self.cached_logs_count = count;
+                        }
+                        Err(_) => {}
+                    }
+
+                    self.status = "All cleared successfully".to_string();
+                }
+            }
+        });
+    }
     /** Draws about window when it is needed. */
     fn handle_about_window(&mut self, ctx: &egui::Context) {
         egui::Window::new("About Dying Light Tweaks")
