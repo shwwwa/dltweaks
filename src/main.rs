@@ -145,7 +145,7 @@ fn launch_direct(game_path: &str, settings: &AppSettings, custom_args: &str, sta
 
 impl MyApp {
     /** Shows launch buttons and handles their's logic. */
-    fn handle_launch_buttons(&mut self, ui: &mut egui::Ui) {
+    fn show_launch_buttons(&mut self, ui: &mut egui::Ui) {
         if ui.button("Launch Game").clicked() {
             if self.config.game_path.is_empty() && !self.config.use_steam_launch {
                 self.status =
@@ -398,7 +398,7 @@ impl eframe::App for MyApp {
             ui.add_space(6.0);
 
             ui.horizontal(|ui| {
-                self.handle_launch_buttons(ui);
+                self.show_launch_buttons(ui);
             });
 
             ui.separator();
