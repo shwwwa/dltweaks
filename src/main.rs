@@ -159,8 +159,8 @@ fn main() -> eframe::Result {
         app.vsync_enabled = app
             .cached_video_settings
             .as_ref()
-            .and_then(|s| s.vsync)
-            .unwrap_or(false);
+            .and_then(|s| Some(s.vsync))
+            .unwrap();
     }
 
     eframe::run_native(PROGRAM_NAME, options, Box::new(|_cc| Ok(Box::new(app))))
@@ -442,7 +442,7 @@ impl MyApp {
                         self.max_fps_preset = MaxFpsPreset::from_value(max_fps_val);
                         self.max_fps_custom = max_fps_val;
 
-                        self.vsync_enabled = self.cached_video_settings.as_ref().and_then(|s| s.vsync).unwrap_or(false);
+                        self.vsync_enabled = self.cached_video_settings.as_ref().and_then(|s| Some(s.vsync)).unwrap();
                     }
                 }
             }
@@ -1098,6 +1098,7 @@ impl MyApp {
                                 self.show_max_fps_info = true;
                             }
 
+                            // TODO: 0 fps means uncapped, not custom (BUG)
                             egui::ComboBox::from_label("")
                                 .selected_text(self.max_fps_preset.as_str())
                                 .show_ui(ui, |ui| {
@@ -1159,6 +1160,38 @@ impl MyApp {
                         });
                     });
                 }
+
+                /* VSync */
+                ui.horizontal(|ui| {
+                    ui.label("VSync:");
+
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        let info_button = egui::Button::new(
+                            egui::RichText::new("i")
+                                .strong()
+                                .size(14.0)
+                                .color(egui::Color32::ORANGE),
+                        )
+                        .frame(false)
+                        .min_size(egui::Vec2::new(20.0, 20.0))
+                        .corner_radius(10.0)
+                        .sense(egui::Sense::click());
+
+                        let info_button_response = ui.add(info_button);
+
+                        if info_button_response.hovered() {
+                            ui.ctx().output_mut(|o| {
+                                o.cursor_icon = egui::CursorIcon::PointingHand;
+                            });
+                        }
+
+                        if info_button_response.clicked() {
+                            self.show_vsync_info = true;
+                        }
+
+                        ui.add(egui::Checkbox::new(&mut self.vsync_enabled, ""));
+                    });
+                });
             } else {
                 ui.label(
                     egui::RichText::new("video.scr not parsed yet or missing")
