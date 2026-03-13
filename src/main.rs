@@ -58,6 +58,8 @@ fn main() -> eframe::Result {
         show_view_distance_info: false,
         show_texture_quality_info: false,
         show_shadow_quality_info: false,
+        show_foliage_quality_info: false,
+        show_framerate_info: false,
     };
 
     if !app.config.game_path.is_empty() {
@@ -192,6 +194,8 @@ struct MyApp {
     show_view_distance_info: bool,
     show_texture_quality_info: bool,
     show_shadow_quality_info: bool,
+    show_foliage_quality_info: bool,
+    show_framerate_info: bool,
 }
 
 /** Launches DL1 via steam://uri wrapper. */
@@ -756,56 +760,6 @@ impl MyApp {
                     ui.add_space(8.0);
                 }
 
-                /* Extra game FOV */
-                ui.horizontal(|ui| {
-                    ui.label("Extra FOV:");
-
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let info_button = egui::Button::new(
-                            egui::RichText::new("i")
-                                .strong()
-                                .size(14.0)
-                                .color(egui::Color32::ORANGE),
-                        )
-                        .frame(false)
-                        .min_size(egui::Vec2::new(20.0, 20.0))
-                        .corner_radius(10.0)
-                        .sense(egui::Sense::click());
-
-                        let info_button_response = ui.add(info_button);
-
-                        if info_button_response.hovered() {
-                            ui.ctx().output_mut(|o| {
-                                o.cursor_icon = egui::CursorIcon::PointingHand;
-                            });
-                        }
-
-                        if info_button_response.clicked() {
-                            self.show_extra_fov_info = true;
-                        }
-
-                        ui.add_sized(
-                            [ui.available_width() - 100.0, 24.0],
-                            egui::Slider::new(
-                                &mut self.extra_fov,
-                                self.extra_fov_slider_min..=self.extra_fov_slider_max,
-                            )
-                            .step_by(0.1)
-                            .trailing_fill(true)
-                            .handle_shape(egui::style::HandleShape::Rect { aspect_ratio: 0.6 }),
-                        );
-                    });
-                });
-                if let Some(original_fov) = video.extra_game_fov {
-                    if (original_fov - self.extra_fov).abs() > 0.01 {
-                        ui.label(
-                            egui::RichText::new(format!("Original in file: {:.2}", original_fov))
-                                .italics()
-                                .color(egui::Color32::LIGHT_GRAY),
-                        );
-                    }
-                }
-
                 /* Gamma */
                 ui.horizontal(|ui| {
                     ui.label("Gamma:");
@@ -905,6 +859,56 @@ impl MyApp {
                             ))
                             .italics()
                             .color(egui::Color32::LIGHT_GRAY),
+                        );
+                    }
+                }
+
+                /* Extra game FOV */
+                ui.horizontal(|ui| {
+                    ui.label("Extra FOV:");
+
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        let info_button = egui::Button::new(
+                            egui::RichText::new("i")
+                                .strong()
+                                .size(14.0)
+                                .color(egui::Color32::ORANGE),
+                        )
+                        .frame(false)
+                        .min_size(egui::Vec2::new(20.0, 20.0))
+                        .corner_radius(10.0)
+                        .sense(egui::Sense::click());
+
+                        let info_button_response = ui.add(info_button);
+
+                        if info_button_response.hovered() {
+                            ui.ctx().output_mut(|o| {
+                                o.cursor_icon = egui::CursorIcon::PointingHand;
+                            });
+                        }
+
+                        if info_button_response.clicked() {
+                            self.show_extra_fov_info = true;
+                        }
+
+                        ui.add_sized(
+                            [ui.available_width() - 100.0, 24.0],
+                            egui::Slider::new(
+                                &mut self.extra_fov,
+                                self.extra_fov_slider_min..=self.extra_fov_slider_max,
+                            )
+                            .step_by(0.1)
+                            .trailing_fill(true)
+                            .handle_shape(egui::style::HandleShape::Rect { aspect_ratio: 0.6 }),
+                        );
+                    });
+                });
+                if let Some(original_fov) = video.extra_game_fov {
+                    if (original_fov - self.extra_fov).abs() > 0.01 {
+                        ui.label(
+                            egui::RichText::new(format!("Original in file: {:.2}", original_fov))
+                                .italics()
+                                .color(egui::Color32::LIGHT_GRAY),
                         );
                     }
                 }
@@ -1121,25 +1125,25 @@ impl MyApp {
             });
     }
 
-    /** Draws about FOV window when it is needed. */
-    fn handle_fov_about(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
-        egui::Window::new("Extra FOV Information")
-            .open(&mut self.show_extra_fov_info)
+    /** Draws about Foliage Quality window when it is needed. */
+    fn handle_foliage_quality_about(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+        egui::Window::new("Foliage Quality Information")
+            .open(&mut self.show_foliage_quality_info)
             .resizable(false)
             .collapsible(false)
             .default_pos(egui::pos2(ui.available_width() / 2., ui.available_height() / 2.))
             .show(ctx, |ui| {
                 ui.vertical_centered(|ui| {
                     ui.label(
-                        "This setting adds extra field of view (FOV) beyond the game's default limits.\n\
-                         Values give vertical fov modifier but may cause visual distortion.\n\
-                         Default range: -10 to +20 (-58 corresponds to fov(0) ingame)."
+                        "TODO\n\
+                         Values give vertical fov modifier (with horiz scaling as well) but may cause visual distortion.\n\
+                         Default range: 1.00 to 2.40.\n"
                     );
                 });
             });
     }
 
-    /** Draws about FOV window when it is needed. */
+    /** Draws about Gamma window when it is needed. */
     fn handle_gamma_about(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
         egui::Window::new("Gamma Information")
             .open(&mut self.show_gamma_info)
@@ -1170,6 +1174,42 @@ impl MyApp {
                         "TODO\n\
                          Values give vertical fov modifier (with horiz scaling as well) but may cause visual distortion.\n\
                          Default range: 1.00 to 2.40.\n"
+                    );
+                });
+            });
+    }
+
+    /** Draws about FOV window when it is needed. */
+    fn handle_fov_about(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+        egui::Window::new("Extra FOV Information")
+            .open(&mut self.show_extra_fov_info)
+            .resizable(false)
+            .collapsible(false)
+            .default_pos(egui::pos2(ui.available_width() / 2., ui.available_height() / 2.))
+            .show(ctx, |ui| {
+                ui.vertical_centered(|ui| {
+                    ui.label(
+                        "This setting adds extra field of view (FOV) beyond the game's default limits.\n\
+                         Values give vertical fov modifier but may cause visual distortion.\n\
+                         Default range: -10 to +20 (-58 corresponds to fov(0) ingame)."
+                    );
+                });
+            });
+    }
+
+    /** Draws about Framerate window when it is needed. */
+    fn handle_framerate_about(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+        egui::Window::new("Framerate Information")
+            .open(&mut self.show_framerate_info)
+            .resizable(false)
+            .collapsible(false)
+            .default_pos(egui::pos2(ui.available_width() / 2., ui.available_height() / 2.))
+            .show(ctx, |ui| {
+                ui.vertical_centered(|ui| {
+                    ui.label(
+                        "This setting adds extra field of view (FOV) beyond the game's default limits.\n\
+                         Values give vertical fov modifier but may cause visual distortion.\n\
+                         Default range: -10 to +20 (-58 corresponds to fov(0) ingame)."
                     );
                 });
             });
@@ -1246,8 +1286,10 @@ impl eframe::App for MyApp {
 
             self.handle_about_window(ui, ctx);
             self.handle_video_readonly_about(ui, ctx);
-            self.handle_shadow_quality_about(ui, ctx);
             self.handle_texture_quality_about(ui, ctx);
+            self.handle_shadow_quality_about(ui, ctx);
+            self.handle_foliage_quality_about(ui, ctx);
+            self.handle_framerate_about(ui, ctx);
             self.handle_fov_about(ui, ctx);
             self.handle_gamma_about(ui, ctx);
             self.handle_view_distance_about(ui, ctx);
