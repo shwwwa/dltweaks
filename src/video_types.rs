@@ -37,6 +37,19 @@ pub enum FoliageQuality {
     Custom,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MaxFpsPreset {
+    #[default]
+    Uncapped,
+    Fps30,
+    Fps60,
+    Fps80,
+    Fps100,
+    Fps120,
+    Fps144,
+    Custom,
+}
+
 impl TextureQuality {
     pub fn from_str(s: &str) -> Self {
         match s.trim().to_lowercase().as_str() {
@@ -116,6 +129,47 @@ impl FoliageQuality {
             Self::Low => "Low",
             Self::Medium => "Medium",
             Self::High => "High",
+            Self::Custom => "Custom",
+        }
+    }
+}
+
+impl MaxFpsPreset {
+    pub fn from_value(value: i32) -> Self {
+        match value {
+            0 | _ if value < 0 => Self::Uncapped,
+            30 => Self::Fps30,
+            60 => Self::Fps60,
+            80 => Self::Fps80,
+            100 => Self::Fps100,
+            120 => Self::Fps120,
+            144 => Self::Fps144,
+            _ => Self::Custom,
+        }
+    }
+
+    pub fn as_value(&self) -> i32 {
+        match self {
+            Self::Uncapped => 0,
+            Self::Fps30 => 30,
+            Self::Fps60 => 60,
+            Self::Fps80 => 80,
+            Self::Fps100 => 100,
+            Self::Fps120 => 120,
+            Self::Fps144 => 144,
+            Self::Custom => 0,
+        }
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Uncapped => "Uncapped",
+            Self::Fps30 => "30",
+            Self::Fps60 => "60",
+            Self::Fps80 => "80",
+            Self::Fps100 => "100",
+            Self::Fps120 => "120",
+            Self::Fps144 => "144",
             Self::Custom => "Custom",
         }
     }

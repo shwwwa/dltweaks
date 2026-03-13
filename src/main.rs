@@ -6,7 +6,7 @@ pub mod video_types;
 
 use crate::config::AppConfig;
 use crate::video::VideoSettings;
-use crate::video_types::{FoliageQuality, ShadowQuality, TextureQuality};
+use crate::video_types::{FoliageQuality, MaxFpsPreset, ShadowQuality, TextureQuality};
 use eframe::egui;
 use rfd::FileDialog;
 
@@ -52,6 +52,9 @@ fn main() -> eframe::Result {
         view_distance: 0.0,
         view_distance_slider_min: 0.0,
         view_distance_slider_max: 0.0,
+        max_fps_preset: MaxFpsPreset::Uncapped,
+        max_fps_custom: 0,
+        vsync_enabled: false,
         /* Show window switches */
         show_about: false,
         show_video_readonly_info: false,
@@ -61,7 +64,8 @@ fn main() -> eframe::Result {
         show_texture_quality_info: false,
         show_shadow_quality_info: false,
         show_foliage_quality_info: false,
-        show_framerate_info: false,
+        show_max_fps_info: false,
+        show_vsync_info: false,
     };
 
     if !app.config.game_path.is_empty() {
@@ -133,7 +137,7 @@ fn main() -> eframe::Result {
         if let Some((a, _b)) = app.cached_video_settings.as_ref().and_then(|s| s.vis_range) {
             app.view_distance = a;
         } else {
-            app.view_distance = 1.0;
+            app.view_distance = 2.0;
         }
 
         app.extra_fov_slider_min = app.extra_fov.min(-10.0);
@@ -142,6 +146,21 @@ fn main() -> eframe::Result {
         app.gamma_slider_max = app.gamma.max(1.5);
         app.view_distance_slider_min = app.view_distance.min(1.0);
         app.view_distance_slider_max = app.view_distance.max(2.4);
+
+        let max_fps_val = app
+            .cached_video_settings
+            .as_ref()
+            .and_then(|s| s.max_fps)
+            .unwrap_or(0);
+
+        app.max_fps_preset = MaxFpsPreset::from_value(max_fps_val);
+        app.max_fps_custom = max_fps_val;
+
+        app.vsync_enabled = app
+            .cached_video_settings
+            .as_ref()
+            .and_then(|s| s.vsync)
+            .unwrap_or(false);
     }
 
     eframe::run_native(PROGRAM_NAME, options, Box::new(|_cc| Ok(Box::new(app))))
@@ -201,6 +220,9 @@ struct MyApp {
     view_distance: f32,
     view_distance_slider_min: f32,
     view_distance_slider_max: f32,
+    max_fps_preset: MaxFpsPreset,
+    max_fps_custom: i32,
+    vsync_enabled: bool,
     /* Show window switches */
     show_about: bool,
     show_video_readonly_info: bool,
@@ -210,7 +232,8 @@ struct MyApp {
     show_texture_quality_info: bool,
     show_shadow_quality_info: bool,
     show_foliage_quality_info: bool,
-    show_framerate_info: bool,
+    show_max_fps_info: bool,
+    show_vsync_info: bool,
 }
 
 /** Launches DL1 via steam://uri wrapper. */
@@ -410,6 +433,16 @@ impl MyApp {
 
                         self.foliage_quality = FoliageQuality::from_value(grass_val);
                         self.foliage_quality_custom = grass_val;
+
+                        let max_fps_val = self.cached_video_settings
+                            .as_ref()
+                            .and_then(|s| s.max_fps)
+                            .unwrap_or(0);
+
+                        self.max_fps_preset = MaxFpsPreset::from_value(max_fps_val);
+                        self.max_fps_custom = max_fps_val;
+
+                        self.vsync_enabled = self.cached_video_settings.as_ref().and_then(|s| s.vsync).unwrap_or(false);
                     }
                 }
             }
@@ -487,6 +520,14 @@ impl MyApp {
 
                         self.foliage_quality = FoliageQuality::from_value(grass_val);
                         self.foliage_quality_custom = grass_val;
+
+                        let max_fps_val = self.cached_video_settings
+                            .as_ref()
+                            .and_then(|s| s.max_fps)
+                            .unwrap_or(0);
+
+                        self.max_fps_preset = MaxFpsPreset::from_value(max_fps_val);
+                        self.max_fps_custom = max_fps_val;
                     }
                 }
             }
@@ -1027,6 +1068,97 @@ impl MyApp {
                         );
                     }
                 }
+
+                /* Framerate Limit */
+                ui.horizontal(|ui| {
+                    ui.label("Franerate Limit:");
+
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.push_id("framerate_limit_combo", |ui| {
+                            let info_button = egui::Button::new(
+                                egui::RichText::new("i")
+                                    .strong()
+                                    .size(14.0)
+                                    .color(egui::Color32::ORANGE),
+                            )
+                            .frame(false)
+                            .min_size(egui::Vec2::new(20.0, 20.0))
+                            .corner_radius(10.0)
+                            .sense(egui::Sense::click());
+
+                            let info_button_response = ui.add(info_button);
+
+                            if info_button_response.hovered() {
+                                ui.ctx().output_mut(|o| {
+                                    o.cursor_icon = egui::CursorIcon::PointingHand;
+                                });
+                            }
+
+                            if info_button_response.clicked() {
+                                self.show_max_fps_info = true;
+                            }
+
+                            egui::ComboBox::from_label("")
+                                .selected_text(self.max_fps_preset.as_str())
+                                .show_ui(ui, |ui| {
+                                    ui.selectable_value(
+                                        &mut self.max_fps_preset,
+                                        MaxFpsPreset::Uncapped,
+                                        "Uncapped",
+                                    );
+                                    ui.selectable_value(
+                                        &mut self.max_fps_preset,
+                                        MaxFpsPreset::Fps30,
+                                        "30",
+                                    );
+                                    ui.selectable_value(
+                                        &mut self.max_fps_preset,
+                                        MaxFpsPreset::Fps60,
+                                        "60",
+                                    );
+                                    ui.selectable_value(
+                                        &mut self.max_fps_preset,
+                                        MaxFpsPreset::Fps80,
+                                        "80",
+                                    );
+                                    ui.selectable_value(
+                                        &mut self.max_fps_preset,
+                                        MaxFpsPreset::Fps100,
+                                        "100",
+                                    );
+                                    ui.selectable_value(
+                                        &mut self.max_fps_preset,
+                                        MaxFpsPreset::Fps120,
+                                        "120",
+                                    );
+                                    ui.selectable_value(
+                                        &mut self.max_fps_preset,
+                                        MaxFpsPreset::Fps144,
+                                        "144",
+                                    );
+                                    ui.selectable_value(
+                                        &mut self.max_fps_preset,
+                                        MaxFpsPreset::Custom,
+                                        "Custom",
+                                    );
+                                });
+                        });
+                    });
+                });
+                if self.max_fps_preset == MaxFpsPreset::Custom {
+                    ui.horizontal(|ui| {
+                        ui.label("Max FPS:");
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            ui.add(
+                                egui::DragValue::new(&mut self.max_fps_custom)
+                                    .speed(1)
+                                    .clamp_existing_to_range(false)
+                                    .update_while_editing(false)
+                                    .range(0..=1000),
+                            );
+                        });
+                    });
+                }
             } else {
                 ui.label(
                     egui::RichText::new("video.scr not parsed yet or missing")
@@ -1271,8 +1403,8 @@ impl MyApp {
                 ui.vertical_centered(|ui| {
                     ui.label(
                         "Controls grass density and its draw distance.\n\
-                         Best to use with Low (2) settings, because grass was poorly optimized in this game.\n\
-                         Any integer past works, but does not have any noticeable effect.",
+                         Best to use with Low (2) settings, grass is poorly optimized in this game.\n\
+                         Any integer past 2 works, but does not have any noticeable effect.",
                     );
 
                     ui.hyperlink_to("High/medium comparison", "https://international.download.nvidia.com/geforce-com/international/comparisons/dying-light/dying-light-foliage-quality-comparison-2-high-vs-medium.html");
@@ -1330,7 +1462,7 @@ impl MyApp {
                     ui.hyperlink_to("Additional overview", "https://imgsli.com/MTQ1NTc5/1/3");
 
                     ui.label("Default range: 1.00 to 2.40.\n\
-                              Recommended values: 1.00 to 2.00");
+                              Recommended values: 1.00 to 2.00.");
 
                 });
             });
@@ -1354,19 +1486,39 @@ impl MyApp {
             });
     }
 
-    /** Draws about Framerate window when it is needed. */
-    fn handle_framerate_about(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
-        egui::Window::new("Framerate Information")
-            .open(&mut self.show_framerate_info)
+    /** Draws about MaxFps window when it is needed. */
+    fn handle_max_fps_about(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+        egui::Window::new("Max Fps Information")
+            .open(&mut self.show_max_fps_info)
             .resizable(false)
             .collapsible(false)
             .default_pos(egui::pos2(ui.available_width() / 2., ui.available_height() / 2.))
             .show(ctx, |ui| {
                 ui.vertical_centered(|ui| {
                     ui.label(
-                        "This setting adds extra field of view (FOV) beyond the game's default limits.\n\
-                         Values give vertical fov modifier but may cause visual distortion.\n\
-                         Default range: -10 to +20 (-58 corresponds to fov(0) ingame)."
+                        "This setting changes framerate limiter in-game.\n\
+                         When in custom range, framerate limiter works, although shows 30 fps in settings as fallback."
+                    );
+                });
+            });
+    }
+
+    /** Draws about Vsync window when it is needed. */
+    fn handle_vsync_about(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+        egui::Window::new("Vertical Synchronization Information")
+            .open(&mut self.show_vsync_info)
+            .resizable(false)
+            .collapsible(false)
+            .default_pos(egui::pos2(
+                ui.available_width() / 2.,
+                ui.available_height() / 2.,
+            ))
+            .show(ctx, |ui| {
+                ui.vertical_centered(|ui| {
+                    ui.label(
+                        "This setting toggles vertical synchronization in-game.\n\
+                         Prevents screen tearing, can add slight input lag.\n\
+                         Does not support skipping frames like on consoles.",
                     );
                 });
             });
@@ -1446,10 +1598,11 @@ impl eframe::App for MyApp {
             self.handle_texture_quality_about(ui, ctx);
             self.handle_shadow_quality_about(ui, ctx);
             self.handle_foliage_quality_about(ui, ctx);
-            self.handle_framerate_about(ui, ctx);
+            self.handle_max_fps_about(ui, ctx);
             self.handle_fov_about(ui, ctx);
             self.handle_gamma_about(ui, ctx);
             self.handle_view_distance_about(ui, ctx);
+            self.handle_vsync_about(ui, ctx);
         });
     }
 

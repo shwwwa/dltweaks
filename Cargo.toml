@@ -7,7 +7,7 @@ rust-version = "1.92"
 [dependencies]
 anyhow = "1.0.102"
 directories = "6.0.0"
-eframe = { version = "0.33.3", features = [ "default" ] }
+eframe = { version = "0.33.3", default-features = false, features = [ "accesskit", "default_fonts", "glow", "wayland", "x11"  ] }
 egui = "0.33.3"
 open = "5.3.3"
 rfd = "0.17.2"

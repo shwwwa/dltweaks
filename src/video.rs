@@ -9,7 +9,12 @@ use crate::video_types::TextureQuality;
 #[derive(Debug, Default)]
 pub struct VideoSettings {
     pub resolution: Option<(u32, u32)>,
+    /** Is windowed is borderless in-game? */
     pub borderless: bool,
+    /** Corresponds to vertical synchronisation of monitor in-game. */
+    pub vsync: bool,
+    /** Corresponds to framerate cap limit in-game. */
+    pub max_fps: Option<i32>,
     /** Corresponds to texture quality in-game. */
     pub texture_quality: Option<TextureQuality>,
     /** Visibility range e.g. view distance in-game. Regular values: (1.0..2.4, 1.0..2.4). */
@@ -65,6 +70,7 @@ pub fn parse_video_scr() -> io::Result<VideoSettings> {
                     }
                 }
                 "Borderless" => settings.borderless = true,
+                "VSync" => settings.vsync = true,
                 "TextureQuality" => {
                     if let Some(quality) = parse_quoted_string(value_part) {
                         settings.texture_quality = Some(TextureQuality::from_str(&quality));
@@ -76,8 +82,8 @@ pub fn parse_video_scr() -> io::Result<VideoSettings> {
                     }
                 }
                 "MaxFPS" => {
-                    if let Some(v) = parse_single_u32(value_part) {
-                        settings.shadow_map_size = Some(v);
+                    if let Some(v) = parse_single_i32(value_part) {
+                        settings.max_fps = Some(v);
                     }
                 }
                 "ShadowMapSize" => {
