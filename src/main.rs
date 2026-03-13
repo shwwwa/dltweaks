@@ -24,7 +24,6 @@ fn main() -> eframe::Result {
         config: config::load_config(),
         status: "".to_string(),
         launch_args: "".to_string(),
-        show_about: false,
         settings: AppSettings::default(),
         /* Cached app stats */
         cached_dumps_mb: 0.0,
@@ -39,6 +38,10 @@ fn main() -> eframe::Result {
         extra_fov: 0.0,
         extra_fov_slider_min: 0.0,
         extra_fov_slider_max: 0.0,
+        gamma: 0.0,
+        gamma_slider_min: 0.0,
+        gamma_slider_max: 0.0,
+        show_about: false,
         show_extra_fov_info: false,
     };
 
@@ -64,14 +67,23 @@ fn main() -> eframe::Result {
 
     if let Ok(video) = video::parse_video_scr() {
         app.cached_video_settings = Some(video);
+
         app.extra_fov = app
             .cached_video_settings
             .as_ref()
             .and_then(|s| s.extra_game_fov)
             .unwrap_or(0.0);
 
+        app.gamma = app
+            .cached_video_settings
+            .as_ref()
+            .and_then(|s| s.gamma_float)
+            .unwrap_or(1.0);
+
         app.extra_fov_slider_min = app.extra_fov.min(-10.0);
         app.extra_fov_slider_max = app.extra_fov.max(20.0);
+        app.gamma_slider_min = app.gamma.min(0.5);
+        app.gamma_slider_max = app.gamma.max(1.5);
     }
 
     eframe::run_native(PROGRAM_NAME, options, Box::new(|_cc| Ok(Box::new(app))))
@@ -104,7 +116,6 @@ struct MyApp {
     config: AppConfig,
     status: String,
     launch_args: String,
-    show_about: bool,
     settings: AppSettings,
     /* Cached app stats */
     cached_dumps_mb: f64,
@@ -113,13 +124,18 @@ struct MyApp {
     cached_screenshots_count: usize,
     cached_logs_mb: f64,
     cached_logs_count: usize,
-    // None = unknown/not checked
+    /* None = unknown/not checked */
     cached_video_readonly: Option<bool>,
     cached_video_settings: Option<VideoSettings>,
     /* Video settings of DL1 */
     extra_fov: f32,
     extra_fov_slider_min: f32,
     extra_fov_slider_max: f32,
+    gamma: f32,
+    gamma_slider_min: f32,
+    gamma_slider_max: f32,
+    /* Show window */
+    show_about: bool,
     show_extra_fov_info: bool,
 }
 
@@ -268,6 +284,7 @@ impl MyApp {
 
                     if let Ok(video) = video::parse_video_scr() {
                         self.cached_video_settings = Some(video);
+
                         if let Some(fov) = self
                             .cached_video_settings
                             .as_ref()
@@ -276,6 +293,12 @@ impl MyApp {
                             self.extra_fov = fov;
                             self.extra_fov_slider_min = fov.min(-10.0);
                             self.extra_fov_slider_max = fov.max(20.0);
+                        }
+
+                        if let Some(gamma) = self.cached_video_settings.as_ref().and_then(|s| s.gamma_float) {
+                            self.gamma = gamma;
+                            self.gamma_slider_min = gamma.min(0.50);
+                            self.gamma_slider_max = gamma.max(1.50);
                         }
                     }
                 }
@@ -493,27 +516,30 @@ impl MyApp {
                             self.extra_fov_slider_min..=self.extra_fov_slider_max,
                         )
                         .step_by(0.1)
-                        .show_value(false)
                         .trailing_fill(true)
                         .handle_shape(egui::style::HandleShape::Rect { aspect_ratio: 0.6 }),
                     );
 
-                    ui.label(egui::RichText::new(format!("{:.2}", self.extra_fov)).strong());
+                    let info_button = egui::Button::new(
+                        egui::RichText::new("i")
+                            .strong()
+                            .size(14.0)
+                            .color(egui::Color32::ORANGE),
+                    )
+                    .frame(false)
+                    .min_size(egui::Vec2::new(20.0, 20.0))
+                    .corner_radius(10.0)
+                    .sense(egui::Sense::click());
 
-                    if ui
-                        .add(
-                            egui::Button::new(
-                                egui::RichText::new("i")
-                                    .strong()
-                                    .size(14.0)
-                                    .color(egui::Color32::ORANGE),
-                            )
-                            .frame(false)
-                            .min_size(egui::Vec2::new(20.0, 20.0))
-                            .corner_radius(10.0),
-                        )
-                        .clicked()
-                    {
+                    let info_button_response = ui.add(info_button);
+
+                    if info_button_response.hovered() {
+                        ui.ctx().output_mut(|o| {
+                            o.cursor_icon = egui::CursorIcon::PointingHand;
+                        });
+                    }
+
+                    if info_button_response.clicked() {
                         self.show_extra_fov_info = true;
                     }
                 });
@@ -627,39 +653,36 @@ impl MyApp {
                         self.status = "Cannot clear dumps: game directory not set".to_string();
                     } else {
                         match utils::clear_dumps(&self.config.game_path) {
-                            Ok(_) => {
-                                self.status = "Crash dumps cleared".to_string();
-                                let (mb, count) = utils::get_dumps_stats(&self.config.game_path);
-                                self.cached_dumps_mb = mb;
-                                self.cached_dumps_count = count;
-                            }
+                            Ok(_) => self.status = "Crash dumps cleared".to_string(),
                             Err(e) => self.status = format!("Failed to clear dumps: {}", e),
                         }
+
+                        let (mb, count) = utils::get_dumps_stats(&self.config.game_path);
+                        self.cached_dumps_mb = mb;
+                        self.cached_dumps_count = count;
                     }
                 }
 
                 if ui.button("Clear screenshots").clicked() {
                     match utils::clear_screenshots() {
-                        Ok(_) => {
-                            self.status = "Screenshots cleared successfully".to_string();
-                            let (mb, count) = utils::get_screenshots_stats();
-                            self.cached_screenshots_mb = mb;
-                            self.cached_screenshots_count = count;
-                        }
+                        Ok(_) => self.status = "Screenshots cleared successfully".to_string(),
                         Err(e) => self.status = format!("Failed to clear screenshots: {}", e),
                     }
+
+                    let (mb, count) = utils::get_screenshots_stats();
+                    self.cached_screenshots_mb = mb;
+                    self.cached_screenshots_count = count;
                 }
 
                 if ui.button("Clear logs").clicked() {
                     match utils::clear_logs() {
-                        Ok(_) => {
-                            self.status = "Logs cleared successfully".to_string();
-                            let (mb, count) = utils::get_logs_stats();
-                            self.cached_logs_mb = mb;
-                            self.cached_logs_count = count;
-                        }
+                        Ok(_) => self.status = "Logs cleared successfully".to_string(),
                         Err(e) => self.status = format!("Failed to clear logs: {}", e),
                     }
+
+                    let (mb, count) = utils::get_logs_stats();
+                    self.cached_logs_mb = mb;
+                    self.cached_logs_count = count;
                 }
 
                 if ui.button("Clear all").clicked() {
