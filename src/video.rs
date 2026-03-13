@@ -25,7 +25,6 @@ pub struct VideoSettings {
     pub motion_blur: Option<i32>,
     pub anti_aliasing: Option<i32>,
     pub disable_dwm: Option<i32>,
-    pub threedtv_settings: Option<(f32, f32)>,
 }
 
 /** Parse video.scr file and return structured settings. */
@@ -121,12 +120,7 @@ pub fn parse_video_scr() -> io::Result<VideoSettings> {
                         settings.disable_dwm = Some(v);
                     }
                 }
-                "3dtvSettings" => {
-                    if let Some((a, b)) = parse_two_f32(value_part) {
-                        settings.threedtv_settings = Some((a, b));
-                    }
-                }
-                "Version" | "Monitor" => {
+                "Version" | "Monitor" | "3dtvSettings" => {
                     // we don't need those fields
                 }
                 key => {

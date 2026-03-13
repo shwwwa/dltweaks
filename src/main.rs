@@ -6,7 +6,7 @@ pub mod video_types;
 
 use crate::config::AppConfig;
 use crate::video::VideoSettings;
-use crate::video_types::{ShadowQuality, TextureQuality};
+use crate::video_types::{FoliageQuality, ShadowQuality, TextureQuality};
 use eframe::egui;
 use rfd::FileDialog;
 
@@ -41,6 +41,8 @@ fn main() -> eframe::Result {
         shadow_quality: ShadowQuality::High,
         shadow_map_size_custom: 0,
         spot_shadow_map_size_custom: 0,
+        foliage_quality: FoliageQuality::High,
+        foliage_quality_custom: 0,
         extra_fov: 0.0,
         extra_fov_slider_min: 0.0,
         extra_fov_slider_max: 0.0,
@@ -107,6 +109,15 @@ fn main() -> eframe::Result {
         app.shadow_map_size_custom = map_size;
         app.spot_shadow_map_size_custom = spot_size;
 
+        let grass_val = app
+            .cached_video_settings
+            .as_ref()
+            .and_then(|s| s.grass_quality)
+            .unwrap_or(0);
+
+        app.foliage_quality = FoliageQuality::from_value(grass_val);
+        app.foliage_quality_custom = grass_val;
+
         app.extra_fov = app
             .cached_video_settings
             .as_ref()
@@ -117,10 +128,12 @@ fn main() -> eframe::Result {
             .cached_video_settings
             .as_ref()
             .and_then(|s| s.gamma_float)
-            .unwrap_or(1.0);
+            .unwrap_or(1.4);
 
         if let Some((a, _b)) = app.cached_video_settings.as_ref().and_then(|s| s.vis_range) {
             app.view_distance = a;
+        } else {
+            app.view_distance = 1.0;
         }
 
         app.extra_fov_slider_min = app.extra_fov.min(-10.0);
@@ -177,6 +190,8 @@ struct MyApp {
     shadow_quality: ShadowQuality,
     shadow_map_size_custom: u32,
     spot_shadow_map_size_custom: u32,
+    foliage_quality: FoliageQuality,
+    foliage_quality_custom: i32,
     extra_fov: f32,
     extra_fov_slider_min: f32,
     extra_fov_slider_max: f32,
@@ -387,6 +402,14 @@ impl MyApp {
                         self.shadow_quality = ShadowQuality::from_values(map_size, spot_size);
                         self.shadow_map_size_custom = map_size;
                         self.spot_shadow_map_size_custom = spot_size;
+
+                        let grass_val = self.cached_video_settings
+                            .as_ref()
+                            .and_then(|s| s.grass_quality)
+                            .unwrap_or(0);
+
+                        self.foliage_quality = FoliageQuality::from_value(grass_val);
+                        self.foliage_quality_custom = grass_val;
                     }
                 }
             }
@@ -440,6 +463,30 @@ impl MyApp {
                             .as_ref()
                             .and_then(|s| s.texture_quality)
                             .unwrap_or(TextureQuality::High);
+
+                                                let map_size = self
+                            .cached_video_settings
+                            .as_ref()
+                            .and_then(|s| s.shadow_map_size)
+                            .unwrap_or(2048);
+
+                        let spot_size = self
+                            .cached_video_settings
+                            .as_ref()
+                            .and_then(|s| s.spot_shadow_map_size)
+                            .unwrap_or(2048);
+
+                        self.shadow_quality = ShadowQuality::from_values(map_size, spot_size);
+                        self.shadow_map_size_custom = map_size;
+                        self.spot_shadow_map_size_custom = spot_size;
+
+                        let grass_val = self.cached_video_settings
+                            .as_ref()
+                            .and_then(|s| s.grass_quality)
+                            .unwrap_or(0);
+
+                        self.foliage_quality = FoliageQuality::from_value(grass_val);
+                        self.foliage_quality_custom = grass_val;
                     }
                 }
             }
@@ -730,7 +777,6 @@ impl MyApp {
                         });
                     });
                 });
-
                 if self.shadow_quality == ShadowQuality::Custom {
                     ui.horizontal(|ui| {
                         ui.label("Shadow Map Size:");
@@ -756,8 +802,77 @@ impl MyApp {
                             );
                         });
                     });
+                }
 
-                    ui.add_space(8.0);
+                /* Foliage Quality */
+                ui.horizontal(|ui| {
+                    ui.label("Foliage Quality:");
+
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.push_id("foliage_quality_combo", |ui| {
+                            let info_button = egui::Button::new(
+                                egui::RichText::new("i")
+                                    .strong()
+                                    .size(14.0)
+                                    .color(egui::Color32::ORANGE),
+                            )
+                            .frame(false)
+                            .min_size(egui::Vec2::new(20.0, 20.0))
+                            .corner_radius(10.0)
+                            .sense(egui::Sense::click());
+
+                            let info_button_response = ui.add(info_button);
+
+                            if info_button_response.hovered() {
+                                ui.ctx().output_mut(|o| {
+                                    o.cursor_icon = egui::CursorIcon::PointingHand;
+                                });
+                            }
+
+                            if info_button_response.clicked() {
+                                self.show_foliage_quality_info = true;
+                            }
+
+                            egui::ComboBox::from_label("")
+                                .selected_text(self.foliage_quality.as_str())
+                                .show_ui(ui, |ui| {
+                                    ui.selectable_value(
+                                        &mut self.foliage_quality,
+                                        FoliageQuality::Low,
+                                        "Low",
+                                    );
+                                    ui.selectable_value(
+                                        &mut self.foliage_quality,
+                                        FoliageQuality::Medium,
+                                        "Medium",
+                                    );
+                                    ui.selectable_value(
+                                        &mut self.foliage_quality,
+                                        FoliageQuality::High,
+                                        "High",
+                                    );
+                                    ui.selectable_value(
+                                        &mut self.foliage_quality,
+                                        FoliageQuality::High,
+                                        "High",
+                                    );
+                                });
+                        });
+                    });
+                });
+                if self.foliage_quality == ShadowQuality::Custom {
+                    ui.horizontal(|ui| {
+                        ui.label("Grass Quality:");
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            ui.add(
+                                egui::DragValue::new(&mut self.shadow_map_size_custom)
+                                    .speed(1)
+                                    .clamp_existing_to_range(false)
+                                    .update_while_editing(false)
+                                    .range(0..=i32::MAX),
+                            );
+                        });
+                    });
                 }
 
                 /* Gamma */
@@ -1131,14 +1246,26 @@ impl MyApp {
             .open(&mut self.show_foliage_quality_info)
             .resizable(false)
             .collapsible(false)
-            .default_pos(egui::pos2(ui.available_width() / 2., ui.available_height() / 2.))
+            .default_pos(egui::pos2(
+                ui.available_width() / 2.,
+                ui.available_height() / 2.,
+            ))
             .show(ctx, |ui| {
                 ui.vertical_centered(|ui| {
                     ui.label(
-                        "TODO\n\
-                         Values give vertical fov modifier (with horiz scaling as well) but may cause visual distortion.\n\
-                         Default range: 1.00 to 2.40.\n"
+                        "Controls grass density and its draw distance.\n\
+                         - Low: 0 (most grass)\n\
+                         - Medium: 1 \n\
+                         - High: 2 (least grass)\n\
+                         Any integer past works, but does not have noticeable effect.\n\
+                         Best to use with low settings, because grass was poorly optimized in this game.",
                     );
+
+                    ui.hyperlink_to("High/medium comparison", "https://international.download.nvidia.com/geforce-com/international/comparisons/dying-light/dying-light-foliage-quality-comparison-2-high-vs-medium.html");
+
+                    ui.hyperlink_to("Medium/lowercase comparison", "https://international.download.nvidia.com/geforce-com/international/comparisons/dying-light/dying-light-foliage-quality-comparison-2-medium-vs-low.html");
+
+                    ui.hyperlink_to("Bad usage example", "https://international.download.nvidia.com/geforce-com/international/comparisons/dying-light/dying-light-foliage-quality-comparison-1-high-vs-low.html");
                 });
             });
     }
@@ -1167,14 +1294,27 @@ impl MyApp {
             .open(&mut self.show_view_distance_info)
             .resizable(false)
             .collapsible(false)
-            .default_pos(egui::pos2(ui.available_width() / 2., ui.available_height() / 2.))
+            .default_pos(egui::pos2(
+                ui.available_width() / 2.,
+                ui.available_height() / 2.,
+            ))
             .show(ctx, |ui| {
                 ui.vertical_centered(|ui| {
                     ui.label(
-                        "TODO\n\
-                         Values give vertical fov modifier (with horiz scaling as well) but may cause visual distortion.\n\
-                         Default range: 1.00 to 2.40.\n"
-                    );
+                        "Corresponds to view distance in-game.\n\
+                         Has significant influence on CPU performance on high values, set as high as you can with leftover performance:");
+
+                    ui.hyperlink_to("CPU cost", "https://imgsli.com/MTQ1NTUx/0/4");
+
+                    ui.label("Still looks good on lowest settings.\n\
+                              More info:");
+
+                    ui.hyperlink_to("Overview of view distances", "https://youtu.be/Iku4GQCYAz4?t=388");
+                    ui.hyperlink_to("Additional overview", "https://imgsli.com/MTQ1NTc5/1/3");
+
+                    ui.label("Default range: 1.00 to 2.40.\n\
+                              Recommended values: 1.00 to 2.00");
+
                 });
             });
     }

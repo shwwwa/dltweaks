@@ -23,6 +23,20 @@ pub enum ShadowQuality {
     Custom,
 }
 
+/** Corresponds to foliage quality in-game. */
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FoliageQuality {
+    /** 0 */
+    Low,
+    /** 1 */
+    Medium,
+    #[default]
+    /** 2 */
+    High,
+    /** Custom value input by user. */
+    Custom,
+}
+
 impl TextureQuality {
     pub fn from_str(s: &str) -> Self {
         match s.trim().to_lowercase().as_str() {
@@ -73,6 +87,35 @@ impl ShadowQuality {
             Self::Medium => "Medium",
             Self::High => "High",
             Self::VeryHigh => "Very High",
+            Self::Custom => "Custom",
+        }
+    }
+}
+
+impl FoliageQuality {
+    pub fn from_value(value: i32) -> Self {
+        match value {
+            0 => Self::Low,
+            1 => Self::Medium,
+            2 => Self::High,
+            _ => Self::Custom,
+        }
+    }
+
+    pub fn as_value(&self) -> i32 {
+        match self {
+            Self::Low => 0,
+            Self::Medium => 1,
+            Self::High => 2,
+            Self::Custom => 0,
+        }
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Low => "Low",
+            Self::Medium => "Medium",
+            Self::High => "High",
             Self::Custom => "Custom",
         }
     }
