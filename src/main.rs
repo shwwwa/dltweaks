@@ -839,7 +839,7 @@ impl MyApp {
                                     ui.selectable_value(
                                         &mut self.foliage_quality,
                                         FoliageQuality::Low,
-                                        "Low (0)",
+                                        "Low (2)",
                                     );
                                     ui.selectable_value(
                                         &mut self.foliage_quality,
@@ -849,7 +849,7 @@ impl MyApp {
                                     ui.selectable_value(
                                         &mut self.foliage_quality,
                                         FoliageQuality::High,
-                                        "High (2)",
+                                        "High (0)",
                                     );
                                     ui.selectable_value(
                                         &mut self.foliage_quality,
@@ -1271,8 +1271,8 @@ impl MyApp {
                 ui.vertical_centered(|ui| {
                     ui.label(
                         "Controls grass density and its draw distance.\n\
-                         Any integer past High (2) works, but does not have noticeable effect.\n\
-                         Best to use with Low (1) settings, because grass was poorly optimized in this game.",
+                         Best to use with Low (2) settings, because grass was poorly optimized in this game.\n\
+                         Any integer past works, but does not have any noticeable effect.",
                     );
 
                     ui.hyperlink_to("High/medium comparison", "https://international.download.nvidia.com/geforce-com/international/comparisons/dying-light/dying-light-foliage-quality-comparison-2-high-vs-medium.html");

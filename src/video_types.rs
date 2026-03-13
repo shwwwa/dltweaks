@@ -26,12 +26,12 @@ pub enum ShadowQuality {
 /** Corresponds to foliage quality in-game. */
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FoliageQuality {
-    /** 0 */
+    /** 2 */
     Low,
     /** 1 */
     Medium,
     #[default]
-    /** 2 */
+    /** 0 */
     High,
     /** Custom value input by user. */
     Custom,
@@ -95,18 +95,18 @@ impl ShadowQuality {
 impl FoliageQuality {
     pub fn from_value(value: i32) -> Self {
         match value {
-            0 => Self::Low,
+            2 => Self::Low,
             1 => Self::Medium,
-            2 => Self::High,
+            0 => Self::High,
             _ => Self::Custom,
         }
     }
 
     pub fn as_value(&self) -> i32 {
         match self {
-            Self::Low => 0,
+            Self::Low => 2,
             Self::Medium => 1,
-            Self::High => 2,
+            Self::High => 0,
             Self::Custom => 0,
         }
     }
