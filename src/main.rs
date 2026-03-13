@@ -216,6 +216,31 @@ impl MyApp {
         self.cached_logs_count = l_count;
     }
 
+    /** Shows label if memory<=required_mb on game drive. */
+    fn show_label_on_limited_memory(&self, ui: &mut egui::Ui) {
+        if let Some(free_mb) = utils::get_free_space_mb(&self.config.game_path) {
+            let needed_mb: u64 = 200;
+            let buffer_mb: u64 = needed_mb + 300;
+
+            if free_mb < needed_mb + buffer_mb {
+                if free_mb < needed_mb {
+                    let msg = format!("You have {}MB free on game drive. Game may crash during launch/gameplay if you don't have at least {}MB more.", free_mb, needed_mb - free_mb);
+                    ui.colored_label(
+                        egui::Color32::RED,
+                        egui::RichText::new(msg).size(15.0).strong(),
+                    );
+                } else {
+                    let msg = format!("Warning: you have {}MB free on game drive. Game will run fine, but you're getting closer to requirement of {}MB free space.", free_mb, needed_mb);
+                    ui.colored_label(
+                        egui::Color32::YELLOW,
+                        egui::RichText::new(msg).size(15.0).strong(),
+                    );
+                }
+            }
+        }
+        // we could add a label when we can't reach the memory, but it is optional feature so we do need to.
+    }
+
     /** Shows launch buttons and handles their's logic. */
     fn show_launch_buttons(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
@@ -290,29 +315,86 @@ impl MyApp {
         });
     }
 
-    /** Shows label if memory<=required_mb on game drive. */
-    fn show_label_on_limited_memory(&self, ui: &mut egui::Ui) {
-        if let Some(free_mb) = utils::get_free_space_mb(&self.config.game_path) {
-            let needed_mb: u64 = 200;
-            let buffer_mb: u64 = needed_mb + 300;
+    /** Shows game install UI. */
+    fn show_game_install_ui(&mut self, ui: &mut egui::Ui) {
+        ui.heading("Game Install location:");
 
-            if free_mb < needed_mb + buffer_mb {
-                if free_mb < needed_mb {
-                    let msg = format!("You have {}MB free on game drive. Game may crash during launch/gameplay if you don't have at least {}MB more.", free_mb, needed_mb - free_mb);
-                    ui.colored_label(
-                        egui::Color32::RED,
-                        egui::RichText::new(msg).size(15.0).strong(),
-                    );
-                } else {
-                    let msg = format!("Warning: you have {}MB free on game drive. Game will run fine, but you're getting closer to requirement of {}MB free space.", free_mb, needed_mb);
-                    ui.colored_label(
-                        egui::Color32::from_rgb(255, 140, 0), // orange-red warning
-                        egui::RichText::new(msg).size(15.0).strong(),
-                    );
+        egui::ScrollArea::vertical().show(ui, |ui| {
+            // Main horizontal layout
+            ui.horizontal(|ui| {
+                let old_path = self.config.game_path.clone();
+
+                ui.add_sized(
+                    [ui.available_width() - 160.0, 24.0],
+                    egui::TextEdit::singleline(&mut self.config.game_path).hint_text(
+                        "e.g. C:\\Program Files (x86)\\Steam\\steamapps\\common\\Dying Light",
+                    ),
+                );
+
+                if ui.button("Select Game Directory").clicked() {
+                    if let Some(path) = FileDialog::new()
+                        .set_directory(&self.config.game_path)
+                        .pick_folder()
+                    {
+                        self.config.game_path = path.to_string_lossy().into_owned();
+
+                        let exe_path =
+                            std::path::Path::new(&self.config.game_path).join(EXECUTABLE_NAME);
+                        if exe_path.exists() {
+                            self.status = "Valid game location".to_string();
+                        } else {
+                            self.status =
+                                "Dying Light executable was not found in selected folder."
+                                    .to_string();
+                        }
+
+                        if let Err(e) = config::save_config(&self.config) {
+                            self.status = format!("Failed to save config: {}", e);
+                        }
+                    }
                 }
-            }
+
+                // Save if path was edited manually
+                if self.config.game_path != old_path {
+                    let _ = config::save_config(&self.config);
+                }
+            })
+        });
+
+        if ui
+            .checkbox(
+                &mut self.config.use_steam_launch,
+                "Use steam launch (fallback)",
+            )
+            .changed()
+        {
+            let _ = config::save_config(&self.config);
         }
-        // we could add a label when we can't reach the memory, but it is optional feature so we do need to.
+
+        ui.add_space(6.0);
+
+        if !self.status.is_empty() {
+            let color = if self.status.starts_with("Valid") || self.status.starts_with("Success") {
+                egui::Color32::GREEN
+            } else {
+                egui::Color32::RED
+            };
+
+            ui.colored_label(color, &self.status);
+        }
+
+        if !self.config.game_path.is_empty() {
+            self.show_label_on_limited_memory(ui);
+        }
+
+        let config_exists = utils::documents_config_exists();
+        let config_text = if config_exists {
+            egui::RichText::new("Documents configs: Found").color(egui::Color32::GREEN)
+        } else {
+            egui::RichText::new("Documents configs: Not Found").color(egui::Color32::RED)
+        };
+
+        ui.label(config_text);
     }
 
     /** Shows launch UI. */
@@ -455,15 +537,6 @@ impl MyApp {
     fn show_cleanup_ui(&mut self, ui: &mut egui::Ui) {
         ui.group(|ui| {
             ui.heading("Game Data Cleanup");
-
-            let config_exists = utils::documents_config_exists();
-            let config_text = if config_exists {
-                egui::RichText::new("Documents configs: Found").color(egui::Color32::GREEN)
-            } else {
-                egui::RichText::new("Documents configs: Not Found").color(egui::Color32::RED)
-            };
-
-            ui.label(config_text);
 
             /* Crash dumps */
             ui.horizontal(|ui| {
@@ -662,82 +735,10 @@ impl eframe::App for MyApp {
 
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.set_min_width(600.);
-            ui.heading("Game Install location:");
 
-            egui::ScrollArea::vertical().show(ui, |ui| {
-                // Main horizontal layout
-                ui.horizontal(|ui| {
-                    let old_path = self.config.game_path.clone();
+            self.show_game_install_ui(ui);
 
-                    ui.add_sized(
-                        [ui.available_width() - 160.0, 24.0],
-                        egui::TextEdit::singleline(&mut self.config.game_path).hint_text(
-                            "e.g. C:\\Program Files (x86)\\Steam\\steamapps\\common\\Dying Light",
-                        ),
-                    );
-
-                    if ui.button("Select Game Directory").clicked() {
-                        if let Some(path) = FileDialog::new()
-                            .set_directory(&self.config.game_path)
-                            .pick_folder()
-                        {
-                            self.config.game_path = path.to_string_lossy().into_owned();
-
-                            let exe_path =
-                                std::path::Path::new(&self.config.game_path).join(EXECUTABLE_NAME);
-                            if exe_path.exists() {
-                                self.status = "Valid game location".to_string();
-                            } else {
-                                self.status =
-                                    "Dying Light executable was not found in selected folder."
-                                        .to_string();
-                            }
-
-                            if let Err(e) = config::save_config(&self.config) {
-                                self.status = format!("Failed to save config: {}", e);
-                            }
-                        }
-                    }
-
-                    // Save if path was edited manually
-                    if self.config.game_path != old_path {
-                        let _ = config::save_config(&self.config);
-                    }
-                })
-            });
-
-            if ui
-                .checkbox(
-                    &mut self.config.use_steam_launch,
-                    "Use steam launch (fallback)",
-                )
-                .changed()
-            {
-                let _ = config::save_config(&self.config);
-            }
-
-            ui.add_space(6.0);
-
-            if !self.status.is_empty() {
-                let color =
-                    if self.status.starts_with("Valid") || self.status.starts_with("Success") {
-                        egui::Color32::GREEN
-                    } else {
-                        egui::Color32::RED
-                    };
-
-                ui.colored_label(color, &self.status);
-            }
-
-            if !self.config.game_path.is_empty() {
-                self.show_label_on_limited_memory(ui);
-            }
-
-            ui.add_space(6.0);
-
-            ui.separator();
-
-            ui.add_space(8.0);
+            ui.add_space(14.0);
 
             self.show_launch_ui(ui);
 
