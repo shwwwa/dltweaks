@@ -839,33 +839,33 @@ impl MyApp {
                                     ui.selectable_value(
                                         &mut self.foliage_quality,
                                         FoliageQuality::Low,
-                                        "Low",
+                                        "Low (0)",
                                     );
                                     ui.selectable_value(
                                         &mut self.foliage_quality,
                                         FoliageQuality::Medium,
-                                        "Medium",
+                                        "Medium (1)",
                                     );
                                     ui.selectable_value(
                                         &mut self.foliage_quality,
                                         FoliageQuality::High,
-                                        "High",
+                                        "High (2)",
                                     );
                                     ui.selectable_value(
                                         &mut self.foliage_quality,
-                                        FoliageQuality::High,
-                                        "High",
+                                        FoliageQuality::Custom,
+                                        "Custom",
                                     );
                                 });
                         });
                     });
                 });
-                if self.foliage_quality == ShadowQuality::Custom {
+                if self.foliage_quality == FoliageQuality::Custom {
                     ui.horizontal(|ui| {
                         ui.label("Grass Quality:");
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             ui.add(
-                                egui::DragValue::new(&mut self.shadow_map_size_custom)
+                                egui::DragValue::new(&mut self.foliage_quality_custom)
                                     .speed(1)
                                     .clamp_existing_to_range(false)
                                     .update_while_editing(false)
@@ -1254,11 +1254,8 @@ impl MyApp {
                 ui.vertical_centered(|ui| {
                     ui.label(
                         "Controls grass density and its draw distance.\n\
-                         - Low: 0 (most grass)\n\
-                         - Medium: 1 \n\
-                         - High: 2 (least grass)\n\
-                         Any integer past works, but does not have noticeable effect.\n\
-                         Best to use with low settings, because grass was poorly optimized in this game.",
+                         Any integer past High (2) works, but does not have noticeable effect.\n\
+                         Best to use with Low (1) settings, because grass was poorly optimized in this game.",
                     );
 
                     ui.hyperlink_to("High/medium comparison", "https://international.download.nvidia.com/geforce-com/international/comparisons/dying-light/dying-light-foliage-quality-comparison-2-high-vs-medium.html");
