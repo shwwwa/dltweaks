@@ -75,6 +75,11 @@ pub fn parse_video_scr() -> io::Result<VideoSettings> {
                         settings.vis_range = Some((a, b));
                     }
                 }
+                "MaxFPS" => {
+                    if let Some(v) = parse_single_u32(value_part) {
+                        settings.shadow_map_size = Some(v);
+                    }
+                }
                 "ShadowMapSize" => {
                     if let Some(v) = parse_single_u32(value_part) {
                         settings.shadow_map_size = Some(v);
