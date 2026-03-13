@@ -37,6 +37,8 @@ fn main() -> eframe::Result {
         cached_video_settings: None,
         /* Video settings of DL1 */
         extra_fov: 0.0,
+        extra_fov_slider_min: 0.0,
+        extra_fov_slider_max: 0.0,
     };
 
     if !app.config.game_path.is_empty() {
@@ -66,6 +68,9 @@ fn main() -> eframe::Result {
             .as_ref()
             .and_then(|s| s.extra_game_fov)
             .unwrap_or(0.0);
+
+        app.extra_fov_slider_min = app.extra_fov.min(-10.0);
+        app.extra_fov_slider_max = app.extra_fov.max(20.0);
     }
 
     eframe::run_native(PROGRAM_NAME, options, Box::new(|_cc| Ok(Box::new(app))))
@@ -112,6 +117,8 @@ struct MyApp {
     cached_video_settings: Option<VideoSettings>,
     /* Video settings of DL1 */
     extra_fov: f32,
+    extra_fov_slider_min: f32,
+    extra_fov_slider_max: f32,
 }
 
 /** Launches DL1 via steam://uri wrapper. */
@@ -211,60 +218,76 @@ impl MyApp {
 
     /** Shows launch buttons and handles their's logic. */
     fn show_launch_buttons(&mut self, ui: &mut egui::Ui) {
-        if ui.button("Launch Game").clicked() {
-            if self.config.game_path.is_empty() && !self.config.use_steam_launch {
-                self.status =
-                    "You can't launch the game while game directory is not set (or use Steam launch fallback).".to_string();
-            } else {
-                let custom_args = self.launch_args.trim();
-
-                if self.config.use_steam_launch {
-                    launch_steam(&self.settings, custom_args, &mut self.status);
+        ui.horizontal(|ui| {
+            if ui.button("Launch Game").clicked() {
+                if self.config.game_path.is_empty() && !self.config.use_steam_launch {
+                    self.status =
+                        "You can't launch the game while game directory is not set (or use Steam launch fallback).".to_string();
                 } else {
-                    launch_direct(
-                        &self.config.game_path,
-                        &self.settings,
-                        custom_args,
-                        &mut self.status,
-                    );
-                }
+                    let custom_args = self.launch_args.trim();
 
-                self.cache_file_stats();
+                    if self.config.use_steam_launch {
+                        launch_steam(&self.settings, custom_args, &mut self.status);
+                    } else {
+                        launch_direct(
+                            &self.config.game_path,
+                            &self.settings,
+                            custom_args,
+                            &mut self.status,
+                        );
+                    }
 
-                if let Ok(video) = video::parse_video_scr() {
-                    self.cached_video_settings = Some(video);
-                    if let Some(fov) = self
-                        .cached_video_settings
-                        .as_ref()
-                        .and_then(|s| s.extra_game_fov)
-                    {
-                        self.extra_fov = fov;
+                    self.cache_file_stats();
+
+                    if let Ok(video) = video::parse_video_scr() {
+                        self.cached_video_settings = Some(video);
+                        if let Some(fov) = self
+                            .cached_video_settings
+                            .as_ref()
+                            .and_then(|s| s.extra_game_fov)
+                        {
+                            self.extra_fov = fov;
+                            self.extra_fov_slider_min = fov.min(-10.0);
+                            self.extra_fov_slider_max = fov.max(20.0);
+                        }
                     }
                 }
             }
-        }
 
-        if ui.button("Launch Game w/o args").clicked() {
-            if self.config.game_path.is_empty() && !self.config.use_steam_launch {
-                self.status =
-                    "You can't launch the game while game directory is not set (or use Steam launch fallback).".to_string();
-            } else {
-                let custom_args = self.launch_args.trim();
-
-                if self.config.use_steam_launch {
-                    launch_steam(&self.settings, custom_args, &mut self.status);
+            if ui.button("Launch Game w/o args").clicked() {
+                if self.config.game_path.is_empty() && !self.config.use_steam_launch {
+                    self.status =
+                        "You can't launch the game while game directory is not set (or use Steam launch fallback).".to_string();
                 } else {
-                    launch_direct(
-                        &self.config.game_path,
-                        &self.settings,
-                        custom_args,
-                        &mut self.status,
-                    );
-                }
+                    let custom_args = self.launch_args.trim();
 
-                self.cache_file_stats();
+                    if self.config.use_steam_launch {
+                        launch_steam(&self.settings, custom_args, &mut self.status);
+                    } else {
+                        launch_direct(
+                            &self.config.game_path,
+                            &self.settings,
+                            custom_args,
+                            &mut self.status,
+                        );
+                    }
+
+                    self.cache_file_stats();
+
+                    if let Ok(video) = video::parse_video_scr() {
+                        self.cached_video_settings = Some(video);
+                        if let Some(fov) = self
+                            .cached_video_settings
+                            .as_ref()
+                            .and_then(|s| s.extra_game_fov)
+                        {
+                            self.extra_fov = fov;
+                            self.extra_fov_slider_max = fov.max(20.0);
+                        }
+                    }
+                }
             }
-        }
+        });
     }
 
     /** Shows label if memory<=required_mb on game drive. */
@@ -292,227 +315,275 @@ impl MyApp {
         // we could add a label when we can't reach the memory, but it is optional feature so we do need to.
     }
 
+    /** Shows launch UI. */
+    fn show_launch_ui(&mut self, ui: &mut egui::Ui) {
+        ui.group(|ui| {
+            self.show_launch_buttons(ui);
+
+            ui.horizontal(|ui| {
+                if ui
+                    .checkbox(&mut self.settings.skip_intro_videos, "Skip intro videos")
+                    .changed()
+                {
+                    let _ = config::save_config(&self.config);
+                }
+                if ui
+                    .checkbox(&mut self.settings.high_priority, "High process priority")
+                    .changed()
+                {
+                    let _ = config::save_config(&self.config);
+                }
+                if ui
+                    .checkbox(&mut self.settings.use_all_cores, "Use all CPU cores")
+                    .changed()
+                {
+                    let _ = config::save_config(&self.config);
+                }
+            });
+
+            ui.horizontal(|ui| {
+                ui.label("Launch arguments:");
+                ui.add_sized(
+                    [ui.available_width() - 120.0, 28.0],
+                    egui::TextEdit::singleline(&mut self.launch_args)
+                        .hint_text("Enter launch arguments")
+                        .desired_width(300.0),
+                );
+            });
+        });
+    }
+
     /** Shows video UI (video.scr). */
     fn show_video_ui(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Video Settings");
+        ui.group(|ui| {
+            ui.heading("Video Settings");
 
-        let readonly_status = match self.cached_video_readonly {
-            Some(true) => "video.scr is currently READ-ONLY",
-            Some(false) => "video.scr is currently WRITABLE",
-            None => "video.scr status unknown (file missing?)",
-        };
+            let readonly_status = match self.cached_video_readonly {
+                Some(true) => "video.scr is currently READ-ONLY",
+                Some(false) => "video.scr is currently WRITABLE",
+                None => "video.scr status unknown (file missing?)",
+            };
 
-        ui.label(readonly_status);
+            ui.label(readonly_status);
 
-        /* Make it writeable button */
-        ui.horizontal(|ui| {
-            if let Some(is_ro) = self.cached_video_readonly {
-                let button_text = if is_ro {
-                    "Make Writable"
+            /* Make it writeable button */
+            ui.horizontal(|ui| {
+                if let Some(is_ro) = self.cached_video_readonly {
+                    let button_text = if is_ro {
+                        "Make Writable"
+                    } else {
+                        "Make Read-Only"
+                    };
+
+                    if ui.button(button_text).clicked() {
+                        match video::toggle_video_scr_readonly(is_ro) {
+                            Ok(new_state) => {
+                                self.cached_video_readonly = Some(new_state);
+                                self.status = format!(
+                                    "video.scr is now {}",
+                                    if new_state { "READ-ONLY" } else { "WRITABLE" }
+                                );
+                            }
+                            Err(e) => {
+                                self.status = format!("Failed to change permissions: {}", e);
+                            }
+                        }
+                    }
                 } else {
-                    "Make Read-Only"
-                };
+                    ui.label(
+                        egui::RichText::new("Cannot toggle: file not found")
+                            .italics()
+                            .color(egui::Color32::GRAY),
+                    );
+                }
+            });
 
-                if ui.button(button_text).clicked() {
-                    match video::toggle_video_scr_readonly(is_ro) {
-                        Ok(new_state) => {
-                            self.cached_video_readonly = Some(new_state);
-                            self.status = format!(
-                                "video.scr is now {}",
-                                if new_state { "READ-ONLY" } else { "WRITABLE" }
-                            );
-                        }
-                        Err(e) => {
-                            self.status = format!("Failed to change permissions: {}", e);
-                        }
+            if let Some(video) = &self.cached_video_settings {
+                ui.horizontal(|ui| {
+                    ui.label("Extra FOV:");
+
+                    ui.add_sized(
+                        [ui.available_width() - 100.0, 24.0],
+                        egui::Slider::new(
+                            &mut self.extra_fov,
+                            self.extra_fov_slider_min..=self.extra_fov_slider_max,
+                        )
+                        .step_by(0.1)
+                        .show_value(false)
+                        .trailing_fill(true)
+                        .handle_shape(egui::style::HandleShape::Rect { aspect_ratio: 0.6 }),
+                    );
+
+                    ui.label(format!("{:.2}", self.extra_fov));
+                });
+
+                if let Some(original_fov) = video.extra_game_fov {
+                    if (original_fov - self.extra_fov).abs() > 0.01 {
+                        ui.label(
+                            egui::RichText::new(format!("Original in file: {:.2}", original_fov))
+                                .italics()
+                                .color(egui::Color32::LIGHT_GRAY),
+                        );
                     }
                 }
             } else {
                 ui.label(
-                    egui::RichText::new("Cannot toggle: file not found")
+                    egui::RichText::new("video.scr not parsed yet or missing")
                         .italics()
                         .color(egui::Color32::GRAY),
                 );
             }
+
+            if ui.button("Parse video.scr").clicked() {
+                match video::parse_video_scr() {
+                    Ok(settings) => {
+                        let summary = format!(
+                            "Resolution: {:?}, Texture: {:?}, FOV extra: {:?}",
+                            settings.resolution, settings.texture_quality, settings.extra_game_fov
+                        );
+                        self.status = summary;
+                    }
+                    Err(e) => {
+                        self.status = format!("Failed to parse video.scr: {}", e);
+                    }
+                }
+            }
         });
-
-        if let Some(video) = &self.cached_video_settings {
-            ui.horizontal(|ui| {
-                ui.label("Extra Game FOV:");
-
-                ui.add_sized(
-                    [ui.available_width() - 100.0, 20.0],
-                    egui::Slider::new(&mut self.extra_fov, -10.0..=20.0)
-                        .step_by(0.1)
-                        .show_value(false),
-                );
-
-                ui.label(format!("{:.2}", self.extra_fov));
-            });
-
-            if let Some(original_fov) = video.extra_game_fov {
-                if (original_fov - self.extra_fov).abs() > 0.01 {
-                    ui.label(
-                        egui::RichText::new(format!("Original in file: {:.2}", original_fov))
-                            .italics()
-                            .color(egui::Color32::LIGHT_GRAY),
-                    );
-                }
-            }
-        } else {
-            ui.label(
-                egui::RichText::new("video.scr not parsed yet or missing")
-                    .italics()
-                    .color(egui::Color32::GRAY),
-            );
-        }
-
-        if ui.button("Parse video.scr").clicked() {
-            match video::parse_video_scr() {
-                Ok(settings) => {
-                    let summary = format!(
-                        "Resolution: {:?}, Texture: {:?}, FOV extra: {:?}",
-                        settings.resolution, settings.texture_quality, settings.extra_game_fov
-                    );
-                    self.status = summary;
-                }
-                Err(e) => {
-                    self.status = format!("Failed to parse video.scr: {}", e);
-                }
-            }
-        }
     }
 
     /** Shows cleanup UI (dumps, screenshots, logs). */
     fn show_cleanup_ui(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Game Data Cleanup");
+        ui.group(|ui| {
+            ui.heading("Game Data Cleanup");
 
-        let config_exists = utils::documents_config_exists();
-        let config_text = if config_exists {
-            egui::RichText::new("Documents configs: Found").color(egui::Color32::GREEN)
-        } else {
-            egui::RichText::new("Documents configs: Not Found").color(egui::Color32::RED)
-        };
-
-        ui.label(config_text);
-
-        /* Crash dumps */
-        ui.horizontal(|ui| {
-            let mb = self.cached_dumps_mb;
-            let count = self.cached_dumps_count;
-            let text = if count == 0 {
-                "No crash dumps found".to_string()
+            let config_exists = utils::documents_config_exists();
+            let config_text = if config_exists {
+                egui::RichText::new("Documents configs: Found").color(egui::Color32::GREEN)
             } else {
-                format!("Crash dumps: {:.1} MB ({} files)", mb, count)
+                egui::RichText::new("Documents configs: Not Found").color(egui::Color32::RED)
             };
 
-            ui.label(text);
+            ui.label(config_text);
 
-            ui.add_space(16.0);
-            if ui.button("Open Folder").clicked() {
-                if self.config.game_path.is_empty() {
-                    self.status = "Cannot open dumps folder: game directory not set".to_string();
+            /* Crash dumps */
+            ui.horizontal(|ui| {
+                let mb = self.cached_dumps_mb;
+                let count = self.cached_dumps_count;
+                let text = if count == 0 {
+                    "No crash dumps found".to_string()
                 } else {
-                    utils::open_dumps_folder(&self.config.game_path);
-                    self.status = "Opened dumps folder".to_string();
+                    format!("Crash dumps: {:.1} MB ({} files)", mb, count)
+                };
+
+                ui.label(text);
+
+                ui.add_space(16.0);
+                if ui.button("Open Folder").clicked() {
+                    if self.config.game_path.is_empty() {
+                        self.status =
+                            "Cannot open dumps folder: game directory not set".to_string();
+                    } else {
+                        utils::open_dumps_folder(&self.config.game_path);
+                        self.status = "Opened dumps folder".to_string();
+                    }
                 }
-            }
-        });
+            });
 
-        /* Screenshots */
-        ui.horizontal(|ui| {
-            let mb = self.cached_screenshots_mb;
-            let count = self.cached_screenshots_count;
-            let text = if count == 0 {
-                "No screenshots found".to_string()
-            } else {
-                format!("Screenshots: {:.1} MB ({} files)", mb, count)
-            };
-
-            ui.label(text);
-
-            ui.add_space(16.0);
-            if ui.button("Open Folder").clicked() {
-                utils::open_screenshots_folder();
-                self.status = "Opened screenshots folder".to_string();
-            }
-        });
-
-        /* Logs */
-        ui.horizontal(|ui| {
-            let mb = self.cached_logs_mb;
-            let count = self.cached_logs_count;
-            let text = if count == 0 {
-                "No logs found".to_string()
-            } else {
-                format!("Logs: {:.1} MB ({} files)", mb, count)
-            };
-
-            ui.label(text);
-
-            ui.add_space(16.0);
-            if ui.button("Open Folder").clicked() {
-                utils::open_logs_folder();
-                self.status = "Opened logs folder".to_string();
-            }
-        });
-
-        ui.add_space(12.0);
-
-        ui.horizontal_wrapped(|ui| {
-            if ui.button("Clear crash dumps").clicked() {
-                if self.config.game_path.is_empty() {
-                    self.status = "Cannot clear dumps: game directory not set".to_string();
+            /* Screenshots */
+            ui.horizontal(|ui| {
+                let mb = self.cached_screenshots_mb;
+                let count = self.cached_screenshots_count;
+                let text = if count == 0 {
+                    "No screenshots found".to_string()
                 } else {
-                    match utils::clear_dumps(&self.config.game_path) {
-                        Ok(_) => {
-                            self.status = "Crash dumps cleared".to_string();
-                            let (mb, count) = utils::get_dumps_stats(&self.config.game_path);
-                            self.cached_dumps_mb = mb;
-                            self.cached_dumps_count = count;
+                    format!("Screenshots: {:.1} MB ({} files)", mb, count)
+                };
+
+                ui.label(text);
+
+                ui.add_space(16.0);
+                if ui.button("Open Folder").clicked() {
+                    utils::open_screenshots_folder();
+                    self.status = "Opened screenshots folder".to_string();
+                }
+            });
+
+            /* Logs */
+            ui.horizontal(|ui| {
+                let mb = self.cached_logs_mb;
+                let count = self.cached_logs_count;
+                let text = if count == 0 {
+                    "No logs found".to_string()
+                } else {
+                    format!("Logs: {:.1} MB ({} files)", mb, count)
+                };
+
+                ui.label(text);
+
+                ui.add_space(16.0);
+                if ui.button("Open Folder").clicked() {
+                    utils::open_logs_folder();
+                    self.status = "Opened logs folder".to_string();
+                }
+            });
+
+            ui.add_space(12.0);
+
+            ui.horizontal_wrapped(|ui| {
+                if ui.button("Clear crash dumps").clicked() {
+                    if self.config.game_path.is_empty() {
+                        self.status = "Cannot clear dumps: game directory not set".to_string();
+                    } else {
+                        match utils::clear_dumps(&self.config.game_path) {
+                            Ok(_) => {
+                                self.status = "Crash dumps cleared".to_string();
+                                let (mb, count) = utils::get_dumps_stats(&self.config.game_path);
+                                self.cached_dumps_mb = mb;
+                                self.cached_dumps_count = count;
+                            }
+                            Err(e) => self.status = format!("Failed to clear dumps: {}", e),
                         }
-                        Err(e) => self.status = format!("Failed to clear dumps: {}", e),
                     }
                 }
-            }
 
-            if ui.button("Clear screenshots").clicked() {
-                match utils::clear_screenshots() {
-                    Ok(_) => {
-                        self.status = "Screenshots cleared successfully".to_string();
-                        let (mb, count) = utils::get_screenshots_stats();
-                        self.cached_screenshots_mb = mb;
-                        self.cached_screenshots_count = count;
+                if ui.button("Clear screenshots").clicked() {
+                    match utils::clear_screenshots() {
+                        Ok(_) => {
+                            self.status = "Screenshots cleared successfully".to_string();
+                            let (mb, count) = utils::get_screenshots_stats();
+                            self.cached_screenshots_mb = mb;
+                            self.cached_screenshots_count = count;
+                        }
+                        Err(e) => self.status = format!("Failed to clear screenshots: {}", e),
                     }
-                    Err(e) => self.status = format!("Failed to clear screenshots: {}", e),
                 }
-            }
 
-            if ui.button("Clear logs").clicked() {
-                match utils::clear_logs() {
-                    Ok(_) => {
-                        self.status = "Logs cleared successfully".to_string();
-                        let (mb, count) = utils::get_logs_stats();
-                        self.cached_logs_mb = mb;
-                        self.cached_logs_count = count;
+                if ui.button("Clear logs").clicked() {
+                    match utils::clear_logs() {
+                        Ok(_) => {
+                            self.status = "Logs cleared successfully".to_string();
+                            let (mb, count) = utils::get_logs_stats();
+                            self.cached_logs_mb = mb;
+                            self.cached_logs_count = count;
+                        }
+                        Err(e) => self.status = format!("Failed to clear logs: {}", e),
                     }
-                    Err(e) => self.status = format!("Failed to clear logs: {}", e),
                 }
-            }
 
-            if ui.button("Clear all").clicked() {
-                if self.config.game_path.is_empty() {
-                    self.status = "Cannot clear all dumps: game directory not set".to_string();
-                } else {
-                    let _ = utils::clear_dumps(&self.config.game_path).is_ok();
-                    let _ = utils::clear_screenshots();
-                    let _ = utils::clear_logs();
+                if ui.button("Clear all").clicked() {
+                    if self.config.game_path.is_empty() {
+                        self.status = "Cannot clear all dumps: game directory not set".to_string();
+                    } else {
+                        let _ = utils::clear_dumps(&self.config.game_path).is_ok();
+                        let _ = utils::clear_screenshots();
+                        let _ = utils::clear_logs();
 
-                    self.cache_file_stats();
+                        self.cache_file_stats();
 
-                    self.status = "Tried to clear everything".to_string();
+                        self.status = "Tried to clear everything".to_string();
+                    }
                 }
-            }
+            });
         });
     }
 
@@ -664,44 +735,18 @@ impl eframe::App for MyApp {
 
             ui.add_space(6.0);
 
-            ui.horizontal(|ui| {
-                self.show_launch_buttons(ui);
-            });
-
             ui.separator();
 
-            ui.horizontal(|ui| {
-                if ui
-                    .checkbox(&mut self.settings.skip_intro_videos, "Skip intro videos")
-                    .changed()
-                {
-                    let _ = config::save_config(&self.config);
-                }
-                if ui
-                    .checkbox(&mut self.settings.high_priority, "High process priority")
-                    .changed()
-                {
-                    let _ = config::save_config(&self.config);
-                }
-                if ui
-                    .checkbox(&mut self.settings.use_all_cores, "Use all CPU cores")
-                    .changed()
-                {
-                    let _ = config::save_config(&self.config);
-                }
-            });
+            ui.add_space(8.0);
 
-            ui.horizontal(|ui| {
-                ui.label("Launch arguments:");
-                ui.add_sized(
-                    [ui.available_width() - 120.0, 28.0],
-                    egui::TextEdit::singleline(&mut self.launch_args)
-                        .hint_text("Enter launch arguments")
-                        .desired_width(300.0),
-                );
-            });
+            self.show_launch_ui(ui);
+
+            ui.add_space(8.0);
 
             self.show_video_ui(ui);
+
+            ui.add_space(8.0);
+
             self.show_cleanup_ui(ui);
         });
 
