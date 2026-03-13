@@ -39,6 +39,7 @@ fn main() -> eframe::Result {
         extra_fov: 0.0,
         extra_fov_slider_min: 0.0,
         extra_fov_slider_max: 0.0,
+        show_extra_fov_info: false,
     };
 
     if !app.config.game_path.is_empty() {
@@ -119,6 +120,7 @@ struct MyApp {
     extra_fov: f32,
     extra_fov_slider_min: f32,
     extra_fov_slider_max: f32,
+    show_extra_fov_info: bool,
 }
 
 /** Launches DL1 via steam://uri wrapper. */
@@ -496,7 +498,24 @@ impl MyApp {
                         .handle_shape(egui::style::HandleShape::Rect { aspect_ratio: 0.6 }),
                     );
 
-                    ui.label(format!("{:.2}", self.extra_fov));
+                    ui.label(egui::RichText::new(format!("{:.2}", self.extra_fov)).strong());
+
+                    if ui
+                        .add(
+                            egui::Button::new(
+                                egui::RichText::new("i")
+                                    .strong()
+                                    .size(14.0)
+                                    .color(egui::Color32::ORANGE),
+                            )
+                            .frame(false)
+                            .min_size(egui::Vec2::new(20.0, 20.0))
+                            .corner_radius(10.0),
+                        )
+                        .clicked()
+                    {
+                        self.show_extra_fov_info = true;
+                    }
                 });
 
                 if let Some(original_fov) = video.extra_game_fov {
@@ -661,21 +680,46 @@ impl MyApp {
     }
 
     /** Draws about window when it is needed. */
-    fn handle_about_window(&mut self, ctx: &egui::Context) {
+    fn handle_about_window(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
         egui::Window::new("About Dying Light Tweaks")
             .open(&mut self.show_about)
             .resizable(false)
             .collapsible(false)
+            .default_pos(egui::pos2(
+                ui.available_width() / 2.,
+                ui.available_height() / 2.,
+            ))
             .show(ctx, |ui| {
                 ui.vertical_centered(|ui| {
                     ui.heading(PROGRAM_NAME);
                     ui.label("Version 0.1.0");
                     ui.add_space(12.0);
-
                     ui.label(egui::RichText::new("Made by caffidev").strong());
                     ui.label(format!("A simple {} Manager", PROGRAM_NAME));
                     ui.add_space(8.0);
                     ui.hyperlink_to("GitHub", "https://github.com/shwwwa/dltweaks");
+                    ui.add_space(12.0);
+                });
+            });
+    }
+
+    /** Draws about FOV window when it is needed. */
+    fn handle_fov_about(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+        egui::Window::new("Extra FOV Information")
+            .open(&mut self.show_extra_fov_info)
+            .resizable(false)
+            .collapsible(false)
+            .default_pos(egui::pos2(ui.available_width() / 2., ui.available_height() / 2.))
+            .show(ctx, |ui| {
+                ui.vertical_centered(|ui| {
+                    ui.heading("Extra FOV");
+                    ui.add_space(8.0);
+                    ui.label(
+                        "This setting adds extra field of view (FOV) beyond the game's default limits.\n\
+                         Values give vertical fov modifier (with horiz scaling as well) but may cause visual distortion.\n\
+                         Default range: -10 to +20\n\
+                         (-52 = fov(0) so change accordingly)"
+                    );
                     ui.add_space(12.0);
                 });
             });
@@ -749,9 +793,11 @@ impl eframe::App for MyApp {
             ui.add_space(8.0);
 
             self.show_cleanup_ui(ui);
-        });
 
-        self.handle_about_window(ctx);
+            self.handle_about_window(ui, ctx);
+
+            self.handle_fov_about(ui, ctx);
+        });
     }
 
     /// Save on app close for extra safety
