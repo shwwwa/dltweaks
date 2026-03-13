@@ -14,6 +14,7 @@ pub struct VideoSettings {
     pub spot_shadow_map_size: Option<u32>,
     pub gamma_float: Option<f32>,
     pub grass_quality: Option<i32>,
+    /** Extra game fov added to usual fov in-game. Regular values: -10..20. */
     pub extra_game_fov: Option<f32>,
     pub ambient_occlusion: Option<i32>,
     pub motion_blur: Option<i32>,

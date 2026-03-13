@@ -4,6 +4,7 @@ pub mod utils;
 pub mod video;
 
 use crate::config::AppConfig;
+use crate::video::VideoSettings;
 use eframe::egui;
 use rfd::FileDialog;
 
@@ -33,6 +34,9 @@ fn main() -> eframe::Result {
         cached_logs_mb: 0.0,
         cached_logs_count: 0,
         cached_video_readonly: None,
+        cached_video_settings: None,
+        /* Video settings of DL1 */
+        extra_fov: 0.0,
     };
 
     if !app.config.game_path.is_empty() {
@@ -53,6 +57,15 @@ fn main() -> eframe::Result {
         if path.is_file() {
             app.cached_video_readonly = Some(video::is_video_scr_readonly());
         }
+    }
+
+    if let Ok(video) = video::parse_video_scr() {
+        app.cached_video_settings = Some(video);
+        app.extra_fov = app
+            .cached_video_settings
+            .as_ref()
+            .and_then(|s| s.extra_game_fov)
+            .unwrap_or(0.0);
     }
 
     eframe::run_native(PROGRAM_NAME, options, Box::new(|_cc| Ok(Box::new(app))))
@@ -96,6 +109,9 @@ struct MyApp {
     cached_logs_count: usize,
     // None = unknown/not checked
     cached_video_readonly: Option<bool>,
+    cached_video_settings: Option<VideoSettings>,
+    /* Video settings of DL1 */
+    extra_fov: f32,
 }
 
 /** Launches DL1 via steam://uri wrapper. */
@@ -214,6 +230,17 @@ impl MyApp {
                 }
 
                 self.cache_file_stats();
+
+                if let Ok(video) = video::parse_video_scr() {
+                    self.cached_video_settings = Some(video);
+                    if let Some(fov) = self
+                        .cached_video_settings
+                        .as_ref()
+                        .and_then(|s| s.extra_game_fov)
+                    {
+                        self.extra_fov = fov;
+                    }
+                }
             }
         }
 
@@ -277,6 +304,7 @@ impl MyApp {
 
         ui.label(readonly_status);
 
+        /* Make it writeable button */
         ui.horizontal(|ui| {
             if let Some(is_ro) = self.cached_video_readonly {
                 let button_text = if is_ro {
@@ -307,6 +335,37 @@ impl MyApp {
                 );
             }
         });
+
+        if let Some(video) = &self.cached_video_settings {
+            ui.horizontal(|ui| {
+                ui.label("Extra Game FOV:");
+
+                ui.add_sized(
+                    [ui.available_width() - 100.0, 20.0],
+                    egui::Slider::new(&mut self.extra_fov, -10.0..=20.0)
+                        .step_by(0.1)
+                        .show_value(false),
+                );
+
+                ui.label(format!("{:.2}", self.extra_fov));
+            });
+
+            if let Some(original_fov) = video.extra_game_fov {
+                if (original_fov - self.extra_fov).abs() > 0.01 {
+                    ui.label(
+                        egui::RichText::new(format!("Original in file: {:.2}", original_fov))
+                            .italics()
+                            .color(egui::Color32::LIGHT_GRAY),
+                    );
+                }
+            }
+        } else {
+            ui.label(
+                egui::RichText::new("video.scr not parsed yet or missing")
+                    .italics()
+                    .color(egui::Color32::GRAY),
+            );
+        }
 
         if ui.button("Parse video.scr").clicked() {
             match video::parse_video_scr() {
