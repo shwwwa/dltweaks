@@ -1210,13 +1210,15 @@ impl MyApp {
             .open(&mut self.show_texture_quality_info)
             .resizable(false)
             .collapsible(false)
-            .default_pos(egui::pos2(ui.available_width() / 2., ui.available_height() / 2.))
+            .default_pos(egui::pos2(
+                ui.available_width() / 2.,
+                ui.available_height() / 2.,
+            ))
             .show(ctx, |ui| {
                 ui.vertical_centered(|ui| {
                     ui.label(
-                        "TODO\n\
-                         Values give vertical fov modifier (with horiz scaling as well) but may cause visual distortion.\n\
-                         Default range: 1.00 to 2.40.\n"
+                        "Set texture quality to highest you VRAM can handle.\n\
+                         Causes small FPS boost while in VRAM bounds.",
                     );
                 });
             });
@@ -1228,13 +1230,28 @@ impl MyApp {
             .open(&mut self.show_shadow_quality_info)
             .resizable(false)
             .collapsible(false)
-            .default_pos(egui::pos2(ui.available_width() / 2., ui.available_height() / 2.))
+            .default_pos(egui::pos2(
+                ui.available_width() / 2.,
+                ui.available_height() / 2.,
+            ))
             .show(ctx, |ui| {
                 ui.vertical_centered(|ui| {
                     ui.label(
-                        "TODO\n\
-                         Values give vertical fov modifier (with horiz scaling as well) but may cause visual distortion.\n\
-                         Default range: 1.00 to 2.40.\n"
+                        "Changes shadow map size => shadow resolution in-game.\n\
+                         Gives substantial performance boost on very high -> high change.\n\
+                         Gives small performance boost on high -> medium change.\n\
+                         Can cause flickering while <= low settings.\n\
+                         Default range: 1.00 to 2.40.\n",
+                    );
+
+                    ui.hyperlink_to(
+                        "Very High -> High difference",
+                        "https://imgsli.com/MTQ1NTUw",
+                    );
+
+                    ui.hyperlink_to(
+                        "High -> Medium difference",
+                        "https://imgsli.com/MTQ1NTUw/3/4",
                     );
                 });
             });
@@ -1273,13 +1290,16 @@ impl MyApp {
             .open(&mut self.show_gamma_info)
             .resizable(false)
             .collapsible(false)
-            .default_pos(egui::pos2(ui.available_width() / 2., ui.available_height() / 2.))
+            .default_pos(egui::pos2(
+                ui.available_width() / 2.,
+                ui.available_height() / 2.,
+            ))
             .show(ctx, |ui| {
                 ui.vertical_centered(|ui| {
                     ui.label(
-                        "TODO\n\
-                         Values give vertical fov modifier (with horiz scaling as well) but may cause visual distortion.\n\
-                         Default range: 0.5 to 1.5.\n"
+                        "Gamma controls overall brightness and contrast\n\
+                         Does not support extreme values.\n\
+                         Default range: 0.5 to 1.5.",
                     );
                 });
             });
