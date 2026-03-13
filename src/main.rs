@@ -41,8 +41,10 @@ fn main() -> eframe::Result {
         gamma: 0.0,
         gamma_slider_min: 0.0,
         gamma_slider_max: 0.0,
+        /* Show window switches */
         show_about: false,
         show_extra_fov_info: false,
+        show_gamma_info: false,
     };
 
     if !app.config.game_path.is_empty() {
@@ -134,9 +136,10 @@ struct MyApp {
     gamma: f32,
     gamma_slider_min: f32,
     gamma_slider_max: f32,
-    /* Show window */
+    /* Show window switches */
     show_about: bool,
     show_extra_fov_info: bool,
+    show_gamma_info: bool,
 }
 
 /** Launches DL1 via steam://uri wrapper. */
@@ -326,6 +329,7 @@ impl MyApp {
 
                     if let Ok(video) = video::parse_video_scr() {
                         self.cached_video_settings = Some(video);
+
                         if let Some(fov) = self
                             .cached_video_settings
                             .as_ref()
@@ -333,6 +337,12 @@ impl MyApp {
                         {
                             self.extra_fov = fov;
                             self.extra_fov_slider_max = fov.max(20.0);
+                        }
+
+                        if let Some(gamma) = self.cached_video_settings.as_ref().and_then(|s| s.gamma_float) {
+                            self.gamma = gamma;
+                            self.gamma_slider_min = gamma.min(0.50);
+                            self.gamma_slider_max = gamma.max(1.50);
                         }
                     }
                 }
@@ -543,11 +553,57 @@ impl MyApp {
                         self.show_extra_fov_info = true;
                     }
                 });
-
                 if let Some(original_fov) = video.extra_game_fov {
                     if (original_fov - self.extra_fov).abs() > 0.01 {
                         ui.label(
                             egui::RichText::new(format!("Original in file: {:.2}", original_fov))
+                                .italics()
+                                .color(egui::Color32::LIGHT_GRAY),
+                        );
+                    }
+                }
+
+                ui.horizontal(|ui| {
+                    ui.label("Gamma:");
+
+                    ui.add_sized(
+                        [ui.available_width() - 100.0, 24.0],
+                        egui::Slider::new(
+                            &mut self.gamma,
+                            self.gamma_slider_min..=self.gamma_slider_max,
+                        )
+                        .step_by(0.01)
+                        .trailing_fill(true)
+                        .handle_shape(egui::style::HandleShape::Rect { aspect_ratio: 0.6 }),
+                    );
+
+                    let info_button = egui::Button::new(
+                        egui::RichText::new("i")
+                            .strong()
+                            .size(14.0)
+                            .color(egui::Color32::ORANGE),
+                    )
+                    .frame(false)
+                    .min_size(egui::Vec2::new(20.0, 20.0))
+                    .corner_radius(10.0)
+                    .sense(egui::Sense::click());
+
+                    let info_button_response = ui.add(info_button);
+
+                    if info_button_response.hovered() {
+                        ui.ctx().output_mut(|o| {
+                            o.cursor_icon = egui::CursorIcon::PointingHand;
+                        });
+                    }
+
+                    if info_button_response.clicked() {
+                        self.show_gamma_info = true;
+                    }
+                });
+                if let Some(original_gamma) = video.gamma_float {
+                    if (original_gamma - self.gamma).abs() > 0.01 {
+                        ui.label(
+                            egui::RichText::new(format!("Original in file: {:.2}", original_gamma))
                                 .italics()
                                 .color(egui::Color32::LIGHT_GRAY),
                         );
@@ -747,6 +803,27 @@ impl MyApp {
                 });
             });
     }
+
+    /** Draws about FOV window when it is needed. */
+    fn handle_gamma_about(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+        egui::Window::new("Gamma Information")
+            .open(&mut self.show_gamma_info)
+            .resizable(false)
+            .collapsible(false)
+            .default_pos(egui::pos2(ui.available_width() / 2., ui.available_height() / 2.))
+            .show(ctx, |ui| {
+                ui.vertical_centered(|ui| {
+                    ui.heading("Gamma");
+                    ui.add_space(8.0);
+                    ui.label(
+                        "TODO\n\
+                         Values give vertical fov modifier (with horiz scaling as well) but may cause visual distortion.\n\
+                         Default range: 0.5 to 1.5\n"
+                    );
+                    ui.add_space(12.0);
+                });
+            });
+    }
 }
 
 impl eframe::App for MyApp {
@@ -818,8 +895,8 @@ impl eframe::App for MyApp {
             self.show_cleanup_ui(ui);
 
             self.handle_about_window(ui, ctx);
-
             self.handle_fov_about(ui, ctx);
+            self.handle_gamma_about(ui, ctx);
         });
     }
 
