@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 pub mod config;
 pub mod utils;
+pub mod video;
 
 use crate::config::AppConfig;
 use eframe::egui;
@@ -31,6 +32,7 @@ fn main() -> eframe::Result {
         cached_screenshots_count: 0,
         cached_logs_mb: 0.0,
         cached_logs_count: 0,
+        cached_video_readonly: None,
     };
 
     if !app.config.game_path.is_empty() {
@@ -46,6 +48,12 @@ fn main() -> eframe::Result {
     let (l_mb, l_count) = utils::get_logs_stats();
     app.cached_logs_mb = l_mb;
     app.cached_logs_count = l_count;
+
+    if let Some(path) = video::get_video_scr_path() {
+        if path.is_file() {
+            app.cached_video_readonly = Some(video::is_video_scr_readonly());
+        }
+    }
 
     eframe::run_native(PROGRAM_NAME, options, Box::new(|_cc| Ok(Box::new(app))))
 }
@@ -79,12 +87,15 @@ struct MyApp {
     launch_args: String,
     show_about: bool,
     settings: AppSettings,
+    /* Cached app stats */
     cached_dumps_mb: f64,
     cached_dumps_count: usize,
     cached_screenshots_mb: f64,
     cached_screenshots_count: usize,
     cached_logs_mb: f64,
     cached_logs_count: usize,
+    // None = unknown/not checked
+    cached_video_readonly: Option<bool>,
 }
 
 /** Launches DL1 via steam://uri wrapper. */
@@ -233,7 +244,7 @@ impl MyApp {
     fn show_label_on_limited_memory(&self, ui: &mut egui::Ui) {
         if let Some(free_mb) = utils::get_free_space_mb(&self.config.game_path) {
             let needed_mb: u64 = 200;
-            let buffer_mb: u64 = needed_mb + 100;
+            let buffer_mb: u64 = needed_mb + 300;
 
             if free_mb < needed_mb + buffer_mb {
                 if free_mb < needed_mb {
@@ -252,6 +263,50 @@ impl MyApp {
             }
         }
         // we could add a label when we can't reach the memory, but it is optional feature so we do need to.
+    }
+
+    /** Shows video UI (video.scr). */
+    fn show_video_ui(&mut self, ui: &mut egui::Ui) {
+        ui.heading("Video Settings");
+
+        let readonly_status = match self.cached_video_readonly {
+            Some(true) => "video.scr is currently READ-ONLY",
+            Some(false) => "video.scr is currently WRITABLE",
+            None => "video.scr status unknown (file missing?)",
+        };
+
+        ui.label(readonly_status);
+
+        ui.horizontal(|ui| {
+            if let Some(is_ro) = self.cached_video_readonly {
+                let button_text = if is_ro {
+                    "Make Writable"
+                } else {
+                    "Make Read-Only"
+                };
+
+                if ui.button(button_text).clicked() {
+                    match video::toggle_video_scr_readonly(is_ro) {
+                        Ok(new_state) => {
+                            self.cached_video_readonly = Some(new_state);
+                            self.status = format!(
+                                "video.scr is now {}",
+                                if new_state { "READ-ONLY" } else { "WRITABLE" }
+                            );
+                        }
+                        Err(e) => {
+                            self.status = format!("Failed to change permissions: {}", e);
+                        }
+                    }
+                }
+            } else {
+                ui.label(
+                    egui::RichText::new("Cannot toggle: file not found")
+                        .italics()
+                        .color(egui::Color32::GRAY),
+                );
+            }
+        });
     }
 
     /** Shows cleanup UI (dumps, screenshots, logs). */
@@ -375,29 +430,18 @@ impl MyApp {
                 if self.config.game_path.is_empty() {
                     self.status = "Cannot clear all dumps: game directory not set".to_string();
                 } else {
-                    if utils::clear_dumps(&self.config.game_path).is_ok() {
-                        let (mb, count) = utils::get_dumps_stats(&self.config.game_path);
-                        self.cached_dumps_mb = mb;
-                        self.cached_dumps_count = count;
-                    }
+                    let _ = utils::clear_dumps(&self.config.game_path).is_ok();
+                    let _ = utils::clear_screenshots();
+                    let _ = utils::clear_logs();
 
-                    if utils::clear_screenshots().is_ok() {
-                        let (mb, count) = utils::get_screenshots_stats();
-                        self.cached_screenshots_mb = mb;
-                        self.cached_screenshots_count = count;
-                    }
+                    self.cache_file_stats();
 
-                    if utils::clear_logs().is_ok() {
-                        let (mb, count) = utils::get_logs_stats();
-                        self.cached_logs_mb = mb;
-                        self.cached_logs_count = count;
-                    }
-
-                    self.status = "All cleared successfully".to_string();
+                    self.status = "Tried to clear everything".to_string();
                 }
             }
         });
     }
+
     /** Draws about window when it is needed. */
     fn handle_about_window(&mut self, ctx: &egui::Context) {
         egui::Window::new("About Dying Light Tweaks")
@@ -583,6 +627,7 @@ impl eframe::App for MyApp {
                 );
             });
 
+            self.show_video_ui(ui);
             self.show_cleanup_ui(ui);
         });
 
