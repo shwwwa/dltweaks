@@ -307,6 +307,21 @@ impl MyApp {
                 );
             }
         });
+
+        if ui.button("Parse video.scr").clicked() {
+            match video::parse_video_scr() {
+                Ok(settings) => {
+                    let summary = format!(
+                        "Resolution: {:?}, Texture: {:?}, FOV extra: {:?}",
+                        settings.resolution, settings.texture_quality, settings.extra_game_fov
+                    );
+                    self.status = summary;
+                }
+                Err(e) => {
+                    self.status = format!("Failed to parse video.scr: {}", e);
+                }
+            }
+        }
     }
 
     /** Shows cleanup UI (dumps, screenshots, logs). */
