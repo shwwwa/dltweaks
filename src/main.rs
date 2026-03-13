@@ -367,6 +367,22 @@ impl MyApp {
                             .as_ref()
                             .and_then(|s| s.texture_quality)
                             .unwrap_or(TextureQuality::High);
+
+                        let map_size = self
+                            .cached_video_settings
+                            .as_ref()
+                            .and_then(|s| s.shadow_map_size)
+                            .unwrap_or(2048);
+
+                        let spot_size = self
+                            .cached_video_settings
+                            .as_ref()
+                            .and_then(|s| s.spot_shadow_map_size)
+                            .unwrap_or(2048);
+
+                        self.shadow_quality = ShadowQuality::from_values(map_size, spot_size);
+                        self.shadow_map_size_custom = map_size;
+                        self.spot_shadow_map_size_custom = spot_size;
                     }
                 }
             }
@@ -601,132 +617,140 @@ impl MyApp {
                 ui.horizontal(|ui| {
                     ui.label("Texture Quality:");
 
-                    ui.push_id("texture_quality_combo", |ui| {
-                        egui::ComboBox::from_label("")
-                            .selected_text(self.texture_quality.as_str())
-                            .show_ui(ui, |ui| {
-                                ui.selectable_value(
-                                    &mut self.texture_quality,
-                                    TextureQuality::Low,
-                                    "Low",
-                                );
-                                ui.selectable_value(
-                                    &mut self.texture_quality,
-                                    TextureQuality::Medium,
-                                    "Medium",
-                                );
-                                ui.selectable_value(
-                                    &mut self.texture_quality,
-                                    TextureQuality::High,
-                                    "High",
-                                );
-                            });
-                    });
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.push_id("texture_quality_combo", |ui| {
+                            let info_button = egui::Button::new(
+                                egui::RichText::new("i")
+                                    .strong()
+                                    .size(14.0)
+                                    .color(egui::Color32::ORANGE),
+                            )
+                            .frame(false)
+                            .min_size(egui::Vec2::new(20.0, 20.0))
+                            .corner_radius(10.0)
+                            .sense(egui::Sense::click());
 
-                    let info_button = egui::Button::new(
-                        egui::RichText::new("i")
-                            .strong()
-                            .size(14.0)
-                            .color(egui::Color32::ORANGE),
-                    )
-                    .frame(false)
-                    .min_size(egui::Vec2::new(20.0, 20.0))
-                    .corner_radius(10.0)
-                    .sense(egui::Sense::click());
+                            let info_button_response = ui.add(info_button);
 
-                    let info_button_response = ui.add(info_button);
+                            if info_button_response.hovered() {
+                                ui.ctx().output_mut(|o| {
+                                    o.cursor_icon = egui::CursorIcon::PointingHand;
+                                });
+                            }
 
-                    if info_button_response.hovered() {
-                        ui.ctx().output_mut(|o| {
-                            o.cursor_icon = egui::CursorIcon::PointingHand;
+                            if info_button_response.clicked() {
+                                self.show_texture_quality_info = true;
+                            }
+
+                            egui::ComboBox::from_label("")
+                                .selected_text(self.texture_quality.as_str())
+                                .show_ui(ui, |ui| {
+                                    ui.selectable_value(
+                                        &mut self.texture_quality,
+                                        TextureQuality::Low,
+                                        "Low",
+                                    );
+                                    ui.selectable_value(
+                                        &mut self.texture_quality,
+                                        TextureQuality::Medium,
+                                        "Medium",
+                                    );
+                                    ui.selectable_value(
+                                        &mut self.texture_quality,
+                                        TextureQuality::High,
+                                        "High",
+                                    );
+                                });
                         });
-                    }
-
-                    if info_button_response.clicked() {
-                        self.show_texture_quality_info = true;
-                    }
+                    });
                 });
 
                 /* Shadow Quality */
                 ui.horizontal(|ui| {
                     ui.label("Shadow Quality:");
 
-                    ui.push_id("shadow_quality_combo", |ui| {
-                        egui::ComboBox::from_label("")
-                            .selected_text(self.shadow_quality.as_str())
-                            .show_ui(ui, |ui| {
-                                ui.selectable_value(
-                                    &mut self.shadow_quality,
-                                    ShadowQuality::Low,
-                                    "Low",
-                                );
-                                ui.selectable_value(
-                                    &mut self.shadow_quality,
-                                    ShadowQuality::Medium,
-                                    "Medium",
-                                );
-                                ui.selectable_value(
-                                    &mut self.shadow_quality,
-                                    ShadowQuality::High,
-                                    "High",
-                                );
-                                ui.selectable_value(
-                                    &mut self.shadow_quality,
-                                    ShadowQuality::VeryHigh,
-                                    "Very High",
-                                );
-                                ui.selectable_value(
-                                    &mut self.shadow_quality,
-                                    ShadowQuality::Custom,
-                                    "Custom",
-                                );
-                            });
-                    });
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.push_id("shadow_quality_combo", |ui| {
+                            let info_button = egui::Button::new(
+                                egui::RichText::new("i")
+                                    .strong()
+                                    .size(14.0)
+                                    .color(egui::Color32::ORANGE),
+                            )
+                            .frame(false)
+                            .min_size(egui::Vec2::new(20.0, 20.0))
+                            .corner_radius(10.0)
+                            .sense(egui::Sense::click());
 
-                    let info_button = egui::Button::new(
-                        egui::RichText::new("i")
-                            .strong()
-                            .size(14.0)
-                            .color(egui::Color32::ORANGE),
-                    )
-                    .frame(false)
-                    .min_size(egui::Vec2::new(20.0, 20.0))
-                    .corner_radius(10.0)
-                    .sense(egui::Sense::click());
+                            let info_button_response = ui.add(info_button);
 
-                    let info_button_response = ui.add(info_button);
+                            if info_button_response.hovered() {
+                                ui.ctx().output_mut(|o| {
+                                    o.cursor_icon = egui::CursorIcon::PointingHand;
+                                });
+                            }
 
-                    if info_button_response.hovered() {
-                        ui.ctx().output_mut(|o| {
-                            o.cursor_icon = egui::CursorIcon::PointingHand;
+                            if info_button_response.clicked() {
+                                self.show_shadow_quality_info = true;
+                            }
+
+                            egui::ComboBox::from_label("")
+                                .selected_text(self.shadow_quality.as_str())
+                                .show_ui(ui, |ui| {
+                                    ui.selectable_value(
+                                        &mut self.shadow_quality,
+                                        ShadowQuality::Low,
+                                        "Low",
+                                    );
+                                    ui.selectable_value(
+                                        &mut self.shadow_quality,
+                                        ShadowQuality::Medium,
+                                        "Medium",
+                                    );
+                                    ui.selectable_value(
+                                        &mut self.shadow_quality,
+                                        ShadowQuality::High,
+                                        "High",
+                                    );
+                                    ui.selectable_value(
+                                        &mut self.shadow_quality,
+                                        ShadowQuality::VeryHigh,
+                                        "Very High",
+                                    );
+                                    ui.selectable_value(
+                                        &mut self.shadow_quality,
+                                        ShadowQuality::Custom,
+                                        "Custom",
+                                    );
+                                });
                         });
-                    }
-
-                    if info_button_response.clicked() {
-                        self.show_shadow_quality_info = true;
-                    }
+                    });
                 });
 
                 if self.shadow_quality == ShadowQuality::Custom {
                     ui.horizontal(|ui| {
                         ui.label("Shadow Map Size:");
-                        ui.add(
-                            egui::DragValue::new(&mut self.shadow_map_size_custom)
-                                .speed(128.0)
-                                .clamp_existing_to_range(false)
-                                .update_while_editing(false)
-                                .range(f32::MIN..=f32::MAX),
-                        );
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            ui.add(
+                                egui::DragValue::new(&mut self.shadow_map_size_custom)
+                                    .speed(128.0)
+                                    .clamp_existing_to_range(false)
+                                    .update_while_editing(false)
+                                    .range(f32::MIN..=f32::MAX),
+                            );
+                        });
                     });
                     ui.horizontal(|ui| {
                         ui.label("Spot Shadow Map Size:");
-                        ui.add(
-                            egui::DragValue::new(&mut self.spot_shadow_map_size_custom)
-                                .speed(128.0)
-                                .clamp_existing_to_range(false)
-                                .update_while_editing(false)
-                                .range(f32::MIN..=f32::MAX),
-                        );
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            ui.add(
+                                egui::DragValue::new(&mut self.spot_shadow_map_size_custom)
+                                    .speed(128.0)
+                                    .clamp_existing_to_range(false)
+                                    .update_while_editing(false)
+                                    .range(f32::MIN..=f32::MAX),
+                            );
+                        });
                     });
 
                     ui.add_space(8.0);
@@ -736,39 +760,41 @@ impl MyApp {
                 ui.horizontal(|ui| {
                     ui.label("Extra FOV:");
 
-                    ui.add_sized(
-                        [ui.available_width() - 100.0, 24.0],
-                        egui::Slider::new(
-                            &mut self.extra_fov,
-                            self.extra_fov_slider_min..=self.extra_fov_slider_max,
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        let info_button = egui::Button::new(
+                            egui::RichText::new("i")
+                                .strong()
+                                .size(14.0)
+                                .color(egui::Color32::ORANGE),
                         )
-                        .step_by(0.1)
-                        .trailing_fill(true)
-                        .handle_shape(egui::style::HandleShape::Rect { aspect_ratio: 0.6 }),
-                    );
+                        .frame(false)
+                        .min_size(egui::Vec2::new(20.0, 20.0))
+                        .corner_radius(10.0)
+                        .sense(egui::Sense::click());
 
-                    let info_button = egui::Button::new(
-                        egui::RichText::new("i")
-                            .strong()
-                            .size(14.0)
-                            .color(egui::Color32::ORANGE),
-                    )
-                    .frame(false)
-                    .min_size(egui::Vec2::new(20.0, 20.0))
-                    .corner_radius(10.0)
-                    .sense(egui::Sense::click());
+                        let info_button_response = ui.add(info_button);
 
-                    let info_button_response = ui.add(info_button);
+                        if info_button_response.hovered() {
+                            ui.ctx().output_mut(|o| {
+                                o.cursor_icon = egui::CursorIcon::PointingHand;
+                            });
+                        }
 
-                    if info_button_response.hovered() {
-                        ui.ctx().output_mut(|o| {
-                            o.cursor_icon = egui::CursorIcon::PointingHand;
-                        });
-                    }
+                        if info_button_response.clicked() {
+                            self.show_extra_fov_info = true;
+                        }
 
-                    if info_button_response.clicked() {
-                        self.show_extra_fov_info = true;
-                    }
+                        ui.add_sized(
+                            [ui.available_width() - 100.0, 24.0],
+                            egui::Slider::new(
+                                &mut self.extra_fov,
+                                self.extra_fov_slider_min..=self.extra_fov_slider_max,
+                            )
+                            .step_by(0.1)
+                            .trailing_fill(true)
+                            .handle_shape(egui::style::HandleShape::Rect { aspect_ratio: 0.6 }),
+                        );
+                    });
                 });
                 if let Some(original_fov) = video.extra_game_fov {
                     if (original_fov - self.extra_fov).abs() > 0.01 {
@@ -784,39 +810,41 @@ impl MyApp {
                 ui.horizontal(|ui| {
                     ui.label("Gamma:");
 
-                    ui.add_sized(
-                        [ui.available_width() - 100.0, 24.0],
-                        egui::Slider::new(
-                            &mut self.gamma,
-                            self.gamma_slider_min..=self.gamma_slider_max,
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        let info_button = egui::Button::new(
+                            egui::RichText::new("i")
+                                .strong()
+                                .size(14.0)
+                                .color(egui::Color32::ORANGE),
                         )
-                        .step_by(0.01)
-                        .trailing_fill(true)
-                        .handle_shape(egui::style::HandleShape::Rect { aspect_ratio: 0.6 }),
-                    );
+                        .frame(false)
+                        .min_size(egui::Vec2::new(20.0, 20.0))
+                        .corner_radius(10.0)
+                        .sense(egui::Sense::click());
 
-                    let info_button = egui::Button::new(
-                        egui::RichText::new("i")
-                            .strong()
-                            .size(14.0)
-                            .color(egui::Color32::ORANGE),
-                    )
-                    .frame(false)
-                    .min_size(egui::Vec2::new(20.0, 20.0))
-                    .corner_radius(10.0)
-                    .sense(egui::Sense::click());
+                        let info_button_response = ui.add(info_button);
 
-                    let info_button_response = ui.add(info_button);
+                        if info_button_response.hovered() {
+                            ui.ctx().output_mut(|o| {
+                                o.cursor_icon = egui::CursorIcon::PointingHand;
+                            });
+                        }
 
-                    if info_button_response.hovered() {
-                        ui.ctx().output_mut(|o| {
-                            o.cursor_icon = egui::CursorIcon::PointingHand;
-                        });
-                    }
+                        if info_button_response.clicked() {
+                            self.show_gamma_info = true;
+                        }
 
-                    if info_button_response.clicked() {
-                        self.show_gamma_info = true;
-                    }
+                        ui.add_sized(
+                            [ui.available_width() - 100.0, 24.0],
+                            egui::Slider::new(
+                                &mut self.gamma,
+                                self.gamma_slider_min..=self.gamma_slider_max,
+                            )
+                            .step_by(0.01)
+                            .trailing_fill(true)
+                            .handle_shape(egui::style::HandleShape::Rect { aspect_ratio: 0.6 }),
+                        );
+                    });
                 });
                 if let Some(original_gamma) = video.gamma_float {
                     if (original_gamma - self.gamma).abs() > 0.01 {
@@ -832,39 +860,41 @@ impl MyApp {
                 ui.horizontal(|ui| {
                     ui.label("View Distance:");
 
-                    ui.add_sized(
-                        [ui.available_width() - 100.0, 24.0],
-                        egui::Slider::new(
-                            &mut self.view_distance,
-                            self.view_distance_slider_min..=self.view_distance_slider_max,
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        let info_button = egui::Button::new(
+                            egui::RichText::new("i")
+                                .strong()
+                                .size(14.0)
+                                .color(egui::Color32::ORANGE),
                         )
-                        .step_by(0.05)
-                        .trailing_fill(true)
-                        .handle_shape(egui::style::HandleShape::Rect { aspect_ratio: 0.6 }),
-                    );
+                        .frame(false)
+                        .min_size(egui::Vec2::new(20.0, 20.0))
+                        .corner_radius(10.0)
+                        .sense(egui::Sense::click());
 
-                    let info_button = egui::Button::new(
-                        egui::RichText::new("i")
-                            .strong()
-                            .size(14.0)
-                            .color(egui::Color32::ORANGE),
-                    )
-                    .frame(false)
-                    .min_size(egui::Vec2::new(20.0, 20.0))
-                    .corner_radius(10.0)
-                    .sense(egui::Sense::click());
+                        let info_button_response = ui.add(info_button);
 
-                    let info_button_response = ui.add(info_button);
+                        if info_button_response.hovered() {
+                            ui.ctx().output_mut(|o| {
+                                o.cursor_icon = egui::CursorIcon::PointingHand;
+                            });
+                        }
 
-                    if info_button_response.hovered() {
-                        ui.ctx().output_mut(|o| {
-                            o.cursor_icon = egui::CursorIcon::PointingHand;
-                        });
-                    }
+                        if info_button_response.clicked() {
+                            self.show_view_distance_info = true;
+                        }
 
-                    if info_button_response.clicked() {
-                        self.show_view_distance_info = true;
-                    }
+                        ui.add_sized(
+                            [ui.available_width() - 100.0, 24.0],
+                            egui::Slider::new(
+                                &mut self.view_distance,
+                                self.view_distance_slider_min..=self.view_distance_slider_max,
+                            )
+                            .step_by(0.05)
+                            .trailing_fill(true)
+                            .handle_shape(egui::style::HandleShape::Rect { aspect_ratio: 0.6 }),
+                        );
+                    });
                 });
                 if let Some((original_view_distance, _)) = video.vis_range {
                     if (original_view_distance - self.view_distance).abs() > 0.01 {
