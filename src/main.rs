@@ -2,9 +2,11 @@
 pub mod config;
 pub mod utils;
 pub mod video;
+pub mod video_types;
 
 use crate::config::AppConfig;
 use crate::video::VideoSettings;
+use crate::video_types::{ShadowQuality, TextureQuality};
 use eframe::egui;
 use rfd::FileDialog;
 
@@ -32,19 +34,30 @@ fn main() -> eframe::Result {
         cached_screenshots_count: 0,
         cached_logs_mb: 0.0,
         cached_logs_count: 0,
-        cached_video_readonly: None,
         cached_video_settings: None,
+        video_readonly: None,
         /* Video settings of DL1 */
+        texture_quality: TextureQuality::High,
+        shadow_quality: ShadowQuality::High,
+        shadow_map_size_custom: 0,
+        spot_shadow_map_size_custom: 0,
         extra_fov: 0.0,
         extra_fov_slider_min: 0.0,
         extra_fov_slider_max: 0.0,
         gamma: 0.0,
         gamma_slider_min: 0.0,
         gamma_slider_max: 0.0,
+        view_distance: 0.0,
+        view_distance_slider_min: 0.0,
+        view_distance_slider_max: 0.0,
         /* Show window switches */
         show_about: false,
+        show_video_readonly_info: false,
         show_extra_fov_info: false,
         show_gamma_info: false,
+        show_view_distance_info: false,
+        show_texture_quality_info: false,
+        show_shadow_quality_info: false,
     };
 
     if !app.config.game_path.is_empty() {
@@ -63,12 +76,34 @@ fn main() -> eframe::Result {
 
     if let Some(path) = video::get_video_scr_path() {
         if path.is_file() {
-            app.cached_video_readonly = Some(video::is_video_scr_readonly());
+            app.video_readonly = Some(video::is_video_scr_readonly());
         }
     }
 
     if let Ok(video) = video::parse_video_scr() {
         app.cached_video_settings = Some(video);
+
+        app.texture_quality = app
+            .cached_video_settings
+            .as_ref()
+            .and_then(|s| s.texture_quality)
+            .unwrap_or(TextureQuality::High);
+
+        let map_size = app
+            .cached_video_settings
+            .as_ref()
+            .and_then(|s| s.shadow_map_size)
+            .unwrap_or(2048);
+
+        let spot_size = app
+            .cached_video_settings
+            .as_ref()
+            .and_then(|s| s.spot_shadow_map_size)
+            .unwrap_or(2048);
+
+        app.shadow_quality = ShadowQuality::from_values(map_size, spot_size);
+        app.shadow_map_size_custom = map_size;
+        app.spot_shadow_map_size_custom = spot_size;
 
         app.extra_fov = app
             .cached_video_settings
@@ -82,10 +117,16 @@ fn main() -> eframe::Result {
             .and_then(|s| s.gamma_float)
             .unwrap_or(1.0);
 
+        if let Some((a, _b)) = app.cached_video_settings.as_ref().and_then(|s| s.vis_range) {
+            app.view_distance = a;
+        }
+
         app.extra_fov_slider_min = app.extra_fov.min(-10.0);
-        app.extra_fov_slider_max = app.extra_fov.max(20.0);
+        app.extra_fov_slider_max = app.extra_fov.max(40.0);
         app.gamma_slider_min = app.gamma.min(0.5);
         app.gamma_slider_max = app.gamma.max(1.5);
+        app.view_distance_slider_min = app.view_distance.min(1.0);
+        app.view_distance_slider_max = app.view_distance.max(2.4);
     }
 
     eframe::run_native(PROGRAM_NAME, options, Box::new(|_cc| Ok(Box::new(app))))
@@ -127,19 +168,30 @@ struct MyApp {
     cached_logs_mb: f64,
     cached_logs_count: usize,
     /* None = unknown/not checked */
-    cached_video_readonly: Option<bool>,
+    video_readonly: Option<bool>,
     cached_video_settings: Option<VideoSettings>,
     /* Video settings of DL1 */
+    texture_quality: TextureQuality,
+    shadow_quality: ShadowQuality,
+    shadow_map_size_custom: u32,
+    spot_shadow_map_size_custom: u32,
     extra_fov: f32,
     extra_fov_slider_min: f32,
     extra_fov_slider_max: f32,
     gamma: f32,
     gamma_slider_min: f32,
     gamma_slider_max: f32,
+    view_distance: f32,
+    view_distance_slider_min: f32,
+    view_distance_slider_max: f32,
     /* Show window switches */
     show_about: bool,
+    show_video_readonly_info: bool,
     show_extra_fov_info: bool,
     show_gamma_info: bool,
+    show_view_distance_info: bool,
+    show_texture_quality_info: bool,
+    show_shadow_quality_info: bool,
 }
 
 /** Launches DL1 via steam://uri wrapper. */
@@ -303,6 +355,18 @@ impl MyApp {
                             self.gamma_slider_min = gamma.min(0.50);
                             self.gamma_slider_max = gamma.max(1.50);
                         }
+
+                        if let Some((view_distance, _)) = self.cached_video_settings.as_ref().and_then(|s| s.vis_range) {
+                            self.view_distance = view_distance;
+                            self.view_distance_slider_min = view_distance.min(1.00);
+                            self.view_distance_slider_max = view_distance.max(2.40);
+                        }
+
+                        self.texture_quality = self
+                            .cached_video_settings
+                            .as_ref()
+                            .and_then(|s| s.texture_quality)
+                            .unwrap_or(TextureQuality::High);
                     }
                 }
             }
@@ -344,6 +408,18 @@ impl MyApp {
                             self.gamma_slider_min = gamma.min(0.50);
                             self.gamma_slider_max = gamma.max(1.50);
                         }
+
+                        if let Some((view_distance, _)) = self.cached_video_settings.as_ref().and_then(|s| s.vis_range) {
+                            self.view_distance = view_distance;
+                            self.view_distance_slider_min = view_distance.min(1.00);
+                            self.view_distance_slider_max = view_distance.max(2.40);
+                        }
+
+                        self.texture_quality = self
+                            .cached_video_settings
+                            .as_ref()
+                            .and_then(|s| s.texture_quality)
+                            .unwrap_or(TextureQuality::High);
                     }
                 }
             }
@@ -475,47 +551,188 @@ impl MyApp {
         ui.group(|ui| {
             ui.heading("Video Settings");
 
-            let readonly_status = match self.cached_video_readonly {
-                Some(true) => "video.scr is currently READ-ONLY",
-                Some(false) => "video.scr is currently WRITABLE",
-                None => "video.scr status unknown (file missing?)",
-            };
-
-            ui.label(readonly_status);
-
-            /* Make it writeable button */
             ui.horizontal(|ui| {
-                if let Some(is_ro) = self.cached_video_readonly {
-                    let button_text = if is_ro {
-                        "Make Writable"
-                    } else {
-                        "Make Read-Only"
-                    };
+                let mut checked = self.video_readonly.unwrap_or(false);
+                let response = ui.add_enabled(
+                    self.video_readonly.is_some(),
+                    egui::Checkbox::new(&mut checked, "Read-only"),
+                );
 
-                    if ui.button(button_text).clicked() {
-                        match video::toggle_video_scr_readonly(is_ro) {
-                            Ok(new_state) => {
-                                self.cached_video_readonly = Some(new_state);
-                                self.status = format!(
-                                    "video.scr is now {}",
-                                    if new_state { "READ-ONLY" } else { "WRITABLE" }
-                                );
-                            }
-                            Err(e) => {
-                                self.status = format!("Failed to change permissions: {}", e);
-                            }
+                if response.changed() && self.video_readonly.is_some() {
+                    let target_readonly = !checked;
+
+                    match video::toggle_video_scr_readonly(!target_readonly) {
+                        Ok(new_state) => {
+                            self.video_readonly = Some(new_state);
+                        }
+                        Err(e) => {
+                            self.status = format!("Failed to change permissions: {}", e);
+                            self.video_readonly = Some(!target_readonly);
                         }
                     }
-                } else {
-                    ui.label(
-                        egui::RichText::new("Cannot toggle: file not found")
-                            .italics()
-                            .color(egui::Color32::GRAY),
-                    );
+                }
+
+                ui.add_space(8.0);
+
+                let info_response = ui.add(
+                    egui::Button::new(
+                        egui::RichText::new("i")
+                            .strong()
+                            .size(14.0)
+                            .color(egui::Color32::ORANGE),
+                    )
+                    .frame(false)
+                    .corner_radius(10.0)
+                    .min_size(egui::vec2(20.0, 20.0)),
+                );
+
+                if info_response.hovered() {
+                    ui.ctx()
+                        .output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
+                }
+
+                if info_response.clicked() {
+                    self.show_video_readonly_info = true;
                 }
             });
 
             if let Some(video) = &self.cached_video_settings {
+                /* Texture Quality */
+                ui.horizontal(|ui| {
+                    ui.label("Texture Quality:");
+
+                    ui.push_id("texture_quality_combo", |ui| {
+                        egui::ComboBox::from_label("")
+                            .selected_text(self.texture_quality.as_str())
+                            .show_ui(ui, |ui| {
+                                ui.selectable_value(
+                                    &mut self.texture_quality,
+                                    TextureQuality::Low,
+                                    "Low",
+                                );
+                                ui.selectable_value(
+                                    &mut self.texture_quality,
+                                    TextureQuality::Medium,
+                                    "Medium",
+                                );
+                                ui.selectable_value(
+                                    &mut self.texture_quality,
+                                    TextureQuality::High,
+                                    "High",
+                                );
+                            });
+                    });
+
+                    let info_button = egui::Button::new(
+                        egui::RichText::new("i")
+                            .strong()
+                            .size(14.0)
+                            .color(egui::Color32::ORANGE),
+                    )
+                    .frame(false)
+                    .min_size(egui::Vec2::new(20.0, 20.0))
+                    .corner_radius(10.0)
+                    .sense(egui::Sense::click());
+
+                    let info_button_response = ui.add(info_button);
+
+                    if info_button_response.hovered() {
+                        ui.ctx().output_mut(|o| {
+                            o.cursor_icon = egui::CursorIcon::PointingHand;
+                        });
+                    }
+
+                    if info_button_response.clicked() {
+                        self.show_texture_quality_info = true;
+                    }
+                });
+
+                /* Shadow Quality */
+                ui.horizontal(|ui| {
+                    ui.label("Shadow Quality:");
+
+                    ui.push_id("shadow_quality_combo", |ui| {
+                        egui::ComboBox::from_label("")
+                            .selected_text(self.shadow_quality.as_str())
+                            .show_ui(ui, |ui| {
+                                ui.selectable_value(
+                                    &mut self.shadow_quality,
+                                    ShadowQuality::Low,
+                                    "Low",
+                                );
+                                ui.selectable_value(
+                                    &mut self.shadow_quality,
+                                    ShadowQuality::Medium,
+                                    "Medium",
+                                );
+                                ui.selectable_value(
+                                    &mut self.shadow_quality,
+                                    ShadowQuality::High,
+                                    "High",
+                                );
+                                ui.selectable_value(
+                                    &mut self.shadow_quality,
+                                    ShadowQuality::VeryHigh,
+                                    "Very High",
+                                );
+                                ui.selectable_value(
+                                    &mut self.shadow_quality,
+                                    ShadowQuality::Custom,
+                                    "Custom",
+                                );
+                            });
+                    });
+
+                    let info_button = egui::Button::new(
+                        egui::RichText::new("i")
+                            .strong()
+                            .size(14.0)
+                            .color(egui::Color32::ORANGE),
+                    )
+                    .frame(false)
+                    .min_size(egui::Vec2::new(20.0, 20.0))
+                    .corner_radius(10.0)
+                    .sense(egui::Sense::click());
+
+                    let info_button_response = ui.add(info_button);
+
+                    if info_button_response.hovered() {
+                        ui.ctx().output_mut(|o| {
+                            o.cursor_icon = egui::CursorIcon::PointingHand;
+                        });
+                    }
+
+                    if info_button_response.clicked() {
+                        self.show_shadow_quality_info = true;
+                    }
+                });
+
+                if self.shadow_quality == ShadowQuality::Custom {
+                    ui.horizontal(|ui| {
+                        ui.label("Shadow Map Size:");
+                        ui.add(
+                            egui::DragValue::new(&mut self.shadow_map_size_custom)
+                                .speed(128.0)
+                                .clamp_existing_to_range(false)
+                                .update_while_editing(false)
+                                .range(f32::MIN..=f32::MAX),
+                        );
+                    });
+                    ui.horizontal(|ui| {
+                        ui.label("Spot Shadow Map Size:");
+                        ui.add(
+                            egui::DragValue::new(&mut self.spot_shadow_map_size_custom)
+                                .speed(128.0)
+                                .clamp_existing_to_range(false)
+                                .update_while_editing(false)
+                                .range(f32::MIN..=f32::MAX),
+                        );
+                    });
+
+                    ui.add_space(8.0);
+                }
+
+                /* Extra game FOV */
                 ui.horizontal(|ui| {
                     ui.label("Extra FOV:");
 
@@ -563,6 +780,7 @@ impl MyApp {
                     }
                 }
 
+                /* Gamma */
                 ui.horizontal(|ui| {
                     ui.label("Gamma:");
 
@@ -609,27 +827,63 @@ impl MyApp {
                         );
                     }
                 }
+
+                /* View Distance */
+                ui.horizontal(|ui| {
+                    ui.label("View Distance:");
+
+                    ui.add_sized(
+                        [ui.available_width() - 100.0, 24.0],
+                        egui::Slider::new(
+                            &mut self.view_distance,
+                            self.view_distance_slider_min..=self.view_distance_slider_max,
+                        )
+                        .step_by(0.05)
+                        .trailing_fill(true)
+                        .handle_shape(egui::style::HandleShape::Rect { aspect_ratio: 0.6 }),
+                    );
+
+                    let info_button = egui::Button::new(
+                        egui::RichText::new("i")
+                            .strong()
+                            .size(14.0)
+                            .color(egui::Color32::ORANGE),
+                    )
+                    .frame(false)
+                    .min_size(egui::Vec2::new(20.0, 20.0))
+                    .corner_radius(10.0)
+                    .sense(egui::Sense::click());
+
+                    let info_button_response = ui.add(info_button);
+
+                    if info_button_response.hovered() {
+                        ui.ctx().output_mut(|o| {
+                            o.cursor_icon = egui::CursorIcon::PointingHand;
+                        });
+                    }
+
+                    if info_button_response.clicked() {
+                        self.show_view_distance_info = true;
+                    }
+                });
+                if let Some((original_view_distance, _)) = video.vis_range {
+                    if (original_view_distance - self.view_distance).abs() > 0.01 {
+                        ui.label(
+                            egui::RichText::new(format!(
+                                "Original in file: {:.2}",
+                                original_view_distance
+                            ))
+                            .italics()
+                            .color(egui::Color32::LIGHT_GRAY),
+                        );
+                    }
+                }
             } else {
                 ui.label(
                     egui::RichText::new("video.scr not parsed yet or missing")
                         .italics()
                         .color(egui::Color32::GRAY),
                 );
-            }
-
-            if ui.button("Parse video.scr").clicked() {
-                match video::parse_video_scr() {
-                    Ok(settings) => {
-                        let summary = format!(
-                            "Resolution: {:?}, Texture: {:?}, FOV extra: {:?}",
-                            settings.resolution, settings.texture_quality, settings.extra_game_fov
-                        );
-                        self.status = summary;
-                    }
-                    Err(e) => {
-                        self.status = format!("Failed to parse video.scr: {}", e);
-                    }
-                }
             }
         });
     }
@@ -782,6 +1036,61 @@ impl MyApp {
             });
     }
 
+    /** Draws about Readonly window when it is needed. */
+    fn handle_video_readonly_about(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+        egui::Window::new("Readonly Information")
+            .open(&mut self.show_video_readonly_info)
+            .resizable(false)
+            .collapsible(false)
+            .default_pos(egui::pos2(ui.available_width() / 2., ui.available_height() / 2.))
+            .show(ctx, |ui| {
+                ui.vertical_centered(|ui| {
+                    ui.label(
+                        "When enabled, video.scr becomes read-only.\n\
+                         This prevents you from overriding your own settings (even with tweaks).\n\
+                         It should disable overriding settings in-game, but Dying Light ignores flag and still overrides so be careful.\n\
+                         Changes take effect immediately."
+                    );
+                });
+            });
+    }
+
+    /** Draws about Texture Quality window when it is needed. */
+    fn handle_texture_quality_about(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+        egui::Window::new("Texture Quality Information")
+            .open(&mut self.show_texture_quality_info)
+            .resizable(false)
+            .collapsible(false)
+            .default_pos(egui::pos2(ui.available_width() / 2., ui.available_height() / 2.))
+            .show(ctx, |ui| {
+                ui.vertical_centered(|ui| {
+                    ui.label(
+                        "TODO\n\
+                         Values give vertical fov modifier (with horiz scaling as well) but may cause visual distortion.\n\
+                         Default range: 1.00 to 2.40.\n"
+                    );
+                });
+            });
+    }
+
+    /** Draws about Shadow Quality window when it is needed. */
+    fn handle_shadow_quality_about(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+        egui::Window::new("Shadow Quality Information")
+            .open(&mut self.show_shadow_quality_info)
+            .resizable(false)
+            .collapsible(false)
+            .default_pos(egui::pos2(ui.available_width() / 2., ui.available_height() / 2.))
+            .show(ctx, |ui| {
+                ui.vertical_centered(|ui| {
+                    ui.label(
+                        "TODO\n\
+                         Values give vertical fov modifier (with horiz scaling as well) but may cause visual distortion.\n\
+                         Default range: 1.00 to 2.40.\n"
+                    );
+                });
+            });
+    }
+
     /** Draws about FOV window when it is needed. */
     fn handle_fov_about(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
         egui::Window::new("Extra FOV Information")
@@ -791,15 +1100,11 @@ impl MyApp {
             .default_pos(egui::pos2(ui.available_width() / 2., ui.available_height() / 2.))
             .show(ctx, |ui| {
                 ui.vertical_centered(|ui| {
-                    ui.heading("Extra FOV");
-                    ui.add_space(8.0);
                     ui.label(
                         "This setting adds extra field of view (FOV) beyond the game's default limits.\n\
-                         Values give vertical fov modifier (with horiz scaling as well) but may cause visual distortion.\n\
-                         Default range: -10 to +20\n\
-                         (-52 = fov(0) so change accordingly)"
+                         Values give vertical fov modifier but may cause visual distortion.\n\
+                         Default range: -10 to +20 (-58 corresponds to fov(0) ingame)."
                     );
-                    ui.add_space(12.0);
                 });
             });
     }
@@ -813,14 +1118,29 @@ impl MyApp {
             .default_pos(egui::pos2(ui.available_width() / 2., ui.available_height() / 2.))
             .show(ctx, |ui| {
                 ui.vertical_centered(|ui| {
-                    ui.heading("Gamma");
-                    ui.add_space(8.0);
                     ui.label(
                         "TODO\n\
                          Values give vertical fov modifier (with horiz scaling as well) but may cause visual distortion.\n\
-                         Default range: 0.5 to 1.5\n"
+                         Default range: 0.5 to 1.5.\n"
                     );
-                    ui.add_space(12.0);
+                });
+            });
+    }
+
+    /** Draws about View Distance window when it is needed. */
+    fn handle_view_distance_about(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+        egui::Window::new("View Distance Information")
+            .open(&mut self.show_view_distance_info)
+            .resizable(false)
+            .collapsible(false)
+            .default_pos(egui::pos2(ui.available_width() / 2., ui.available_height() / 2.))
+            .show(ctx, |ui| {
+                ui.vertical_centered(|ui| {
+                    ui.label(
+                        "TODO\n\
+                         Values give vertical fov modifier (with horiz scaling as well) but may cause visual distortion.\n\
+                         Default range: 1.00 to 2.40.\n"
+                    );
                 });
             });
     }
@@ -895,8 +1215,12 @@ impl eframe::App for MyApp {
             self.show_cleanup_ui(ui);
 
             self.handle_about_window(ui, ctx);
+            self.handle_video_readonly_about(ui, ctx);
+            self.handle_shadow_quality_about(ui, ctx);
+            self.handle_texture_quality_about(ui, ctx);
             self.handle_fov_about(ui, ctx);
             self.handle_gamma_about(ui, ctx);
+            self.handle_view_distance_about(ui, ctx);
         });
     }
 

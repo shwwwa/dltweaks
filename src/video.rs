@@ -3,15 +3,20 @@ use std::fs;
 use std::io::{self, BufRead};
 use std::path::PathBuf;
 
-/// Parsed video settings from video.scr
+use crate::video_types::TextureQuality;
+
+/** Parsed video settings from video.scr. */
 #[derive(Debug, Default)]
 pub struct VideoSettings {
     pub resolution: Option<(u32, u32)>,
     pub borderless: bool,
-    pub texture_quality: Option<String>,
+    /** Corresponds to texture quality in-game. */
+    pub texture_quality: Option<TextureQuality>,
+    /** Visibility range e.g. view distance in-game. Regular values: (1.0..2.4, 1.0..2.4). */
     pub vis_range: Option<(f32, f32)>,
     pub shadow_map_size: Option<u32>,
     pub spot_shadow_map_size: Option<u32>,
+    /** Corresponds to gamma in-game. Regular values: 0.5..1.5. */
     pub gamma_float: Option<f32>,
     pub grass_quality: Option<i32>,
     /** Extra game fov added to usual fov in-game. Regular values: -10..20. */
@@ -63,7 +68,7 @@ pub fn parse_video_scr() -> io::Result<VideoSettings> {
                 "Borderless" => settings.borderless = true,
                 "TextureQuality" => {
                     if let Some(quality) = parse_quoted_string(value_part) {
-                        settings.texture_quality = Some(quality);
+                        settings.texture_quality = Some(TextureQuality::from_str(&quality));
                     }
                 }
                 "VisRange" => {
