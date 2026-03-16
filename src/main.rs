@@ -55,6 +55,8 @@ fn main() -> eframe::Result {
         max_fps_preset: MaxFpsPreset::Uncapped,
         max_fps_custom: 0,
         vsync_enabled: false,
+        fullscreen: false,
+        borderless: false,
         /* Show window switches */
         show_about: false,
         show_video_readonly_info: false,
@@ -66,6 +68,7 @@ fn main() -> eframe::Result {
         show_foliage_quality_info: false,
         show_max_fps_info: false,
         show_vsync_info: false,
+        show_display_mode_info: false,
     };
 
     if !app.config.game_path.is_empty() {
@@ -90,22 +93,15 @@ fn main() -> eframe::Result {
 
     if let Ok(video) = video::parse_video_scr() {
         app.cached_video_settings = Some(video);
+        let video_opt = app.cached_video_settings.as_ref();
 
-        app.texture_quality = app
-            .cached_video_settings
-            .as_ref()
+        app.texture_quality = video_opt
             .and_then(|s| s.texture_quality)
             .unwrap_or(TextureQuality::High);
 
-        let map_size = app
-            .cached_video_settings
-            .as_ref()
-            .and_then(|s| s.shadow_map_size)
-            .unwrap_or(2048);
+        let map_size = video_opt.and_then(|s| s.shadow_map_size).unwrap_or(2048);
 
-        let spot_size = app
-            .cached_video_settings
-            .as_ref()
+        let spot_size = video_opt
             .and_then(|s| s.spot_shadow_map_size)
             .unwrap_or(2048);
 
@@ -113,28 +109,16 @@ fn main() -> eframe::Result {
         app.shadow_map_size_custom = map_size;
         app.spot_shadow_map_size_custom = spot_size;
 
-        let grass_val = app
-            .cached_video_settings
-            .as_ref()
-            .and_then(|s| s.grass_quality)
-            .unwrap_or(0);
+        let grass_val = video_opt.and_then(|s| s.grass_quality).unwrap_or(0);
 
         app.foliage_quality = FoliageQuality::from_value(grass_val);
         app.foliage_quality_custom = grass_val;
 
-        app.extra_fov = app
-            .cached_video_settings
-            .as_ref()
-            .and_then(|s| s.extra_game_fov)
-            .unwrap_or(0.0);
+        app.extra_fov = video_opt.and_then(|s| s.extra_game_fov).unwrap_or(0.0);
 
-        app.gamma = app
-            .cached_video_settings
-            .as_ref()
-            .and_then(|s| s.gamma_float)
-            .unwrap_or(1.4);
+        app.gamma = video_opt.and_then(|s| s.gamma_float).unwrap_or(1.4);
 
-        if let Some((a, _b)) = app.cached_video_settings.as_ref().and_then(|s| s.vis_range) {
+        if let Some((a, _b)) = video_opt.and_then(|s| s.vis_range) {
             app.view_distance = a;
         } else {
             app.view_distance = 2.0;
@@ -147,20 +131,19 @@ fn main() -> eframe::Result {
         app.view_distance_slider_min = app.view_distance.min(1.0);
         app.view_distance_slider_max = app.view_distance.max(2.4);
 
-        let max_fps_val = app
-            .cached_video_settings
-            .as_ref()
-            .and_then(|s| s.max_fps)
-            .unwrap_or(0);
+        let max_fps_val = video_opt.and_then(|s| s.max_fps).unwrap_or(0);
 
         app.max_fps_preset = MaxFpsPreset::from_value(max_fps_val);
         app.max_fps_custom = max_fps_val;
 
-        app.vsync_enabled = app
-            .cached_video_settings
-            .as_ref()
-            .and_then(|s| Some(s.vsync))
-            .unwrap();
+        app.vsync_enabled = video_opt.and_then(|s| Some(s.vsync)).unwrap();
+
+        app.fullscreen = video_opt.map_or(false, |s| s.fullscreen);
+        app.borderless = video_opt.map_or(false, |s| s.borderless);
+
+        if app.fullscreen && app.borderless {
+            app.fullscreen = false;
+        }
     }
 
     eframe::run_native(PROGRAM_NAME, options, Box::new(|_cc| Ok(Box::new(app))))
@@ -223,6 +206,8 @@ struct MyApp {
     max_fps_preset: MaxFpsPreset,
     max_fps_custom: i32,
     vsync_enabled: bool,
+    fullscreen: bool,
+    borderless: bool,
     /* Show window switches */
     show_about: bool,
     show_video_readonly_info: bool,
@@ -234,6 +219,7 @@ struct MyApp {
     show_foliage_quality_info: bool,
     show_max_fps_info: bool,
     show_vsync_info: bool,
+    show_display_mode_info: bool,
 }
 
 /** Launches DL1 via steam://uri wrapper. */
@@ -381,10 +367,9 @@ impl MyApp {
 
                     if let Ok(video) = video::parse_video_scr() {
                         self.cached_video_settings = Some(video);
+                        let video_opt = self.cached_video_settings.as_ref();
 
-                        if let Some(fov) = self
-                            .cached_video_settings
-                            .as_ref()
+                        if let Some(fov) = video_opt
                             .and_then(|s| s.extra_game_fov)
                         {
                             self.extra_fov = fov;
@@ -392,33 +377,27 @@ impl MyApp {
                             self.extra_fov_slider_max = fov.max(20.0);
                         }
 
-                        if let Some(gamma) = self.cached_video_settings.as_ref().and_then(|s| s.gamma_float) {
+                        if let Some(gamma) = video_opt.and_then(|s| s.gamma_float) {
                             self.gamma = gamma;
                             self.gamma_slider_min = gamma.min(0.50);
                             self.gamma_slider_max = gamma.max(1.50);
                         }
 
-                        if let Some((view_distance, _)) = self.cached_video_settings.as_ref().and_then(|s| s.vis_range) {
+                        if let Some((view_distance, _)) = video_opt.and_then(|s| s.vis_range) {
                             self.view_distance = view_distance;
                             self.view_distance_slider_min = view_distance.min(1.00);
                             self.view_distance_slider_max = view_distance.max(2.40);
                         }
 
-                        self.texture_quality = self
-                            .cached_video_settings
-                            .as_ref()
+                        self.texture_quality = video_opt
                             .and_then(|s| s.texture_quality)
                             .unwrap_or(TextureQuality::High);
 
-                        let map_size = self
-                            .cached_video_settings
-                            .as_ref()
+                        let map_size = video_opt
                             .and_then(|s| s.shadow_map_size)
                             .unwrap_or(2048);
 
-                        let spot_size = self
-                            .cached_video_settings
-                            .as_ref()
+                        let spot_size = video_opt
                             .and_then(|s| s.spot_shadow_map_size)
                             .unwrap_or(2048);
 
@@ -426,23 +405,28 @@ impl MyApp {
                         self.shadow_map_size_custom = map_size;
                         self.spot_shadow_map_size_custom = spot_size;
 
-                        let grass_val = self.cached_video_settings
-                            .as_ref()
+                        let grass_val = video_opt
                             .and_then(|s| s.grass_quality)
                             .unwrap_or(0);
 
                         self.foliage_quality = FoliageQuality::from_value(grass_val);
                         self.foliage_quality_custom = grass_val;
 
-                        let max_fps_val = self.cached_video_settings
-                            .as_ref()
+                        let max_fps_val = video_opt
                             .and_then(|s| s.max_fps)
                             .unwrap_or(0);
 
                         self.max_fps_preset = MaxFpsPreset::from_value(max_fps_val);
                         self.max_fps_custom = max_fps_val;
 
-                        self.vsync_enabled = self.cached_video_settings.as_ref().and_then(|s| Some(s.vsync)).unwrap();
+                        self.vsync_enabled = video_opt.and_then(|s| Some(s.vsync)).unwrap();
+
+                        self.fullscreen = video_opt.map_or(false, |s| s.fullscreen);
+                        self.borderless = video_opt.map_or(false, |s| s.borderless);
+
+                        if self.fullscreen && self.borderless {
+                            self.fullscreen = false;
+                        }
                     }
                 }
             }
@@ -469,43 +453,36 @@ impl MyApp {
 
                     if let Ok(video) = video::parse_video_scr() {
                         self.cached_video_settings = Some(video);
+                        let video_opt = self.cached_video_settings.as_ref();
 
-                        if let Some(fov) = self
-                            .cached_video_settings
-                            .as_ref()
+                        if let Some(fov) = video_opt
                             .and_then(|s| s.extra_game_fov)
                         {
                             self.extra_fov = fov;
                             self.extra_fov_slider_max = fov.max(20.0);
                         }
 
-                        if let Some(gamma) = self.cached_video_settings.as_ref().and_then(|s| s.gamma_float) {
+                        if let Some(gamma) = video_opt.and_then(|s| s.gamma_float) {
                             self.gamma = gamma;
                             self.gamma_slider_min = gamma.min(0.50);
                             self.gamma_slider_max = gamma.max(1.50);
                         }
 
-                        if let Some((view_distance, _)) = self.cached_video_settings.as_ref().and_then(|s| s.vis_range) {
+                        if let Some((view_distance, _)) = video_opt.and_then(|s| s.vis_range) {
                             self.view_distance = view_distance;
                             self.view_distance_slider_min = view_distance.min(1.00);
                             self.view_distance_slider_max = view_distance.max(2.40);
                         }
 
-                        self.texture_quality = self
-                            .cached_video_settings
-                            .as_ref()
+                        self.texture_quality = video_opt
                             .and_then(|s| s.texture_quality)
                             .unwrap_or(TextureQuality::High);
 
-                                                let map_size = self
-                            .cached_video_settings
-                            .as_ref()
+                        let map_size = video_opt
                             .and_then(|s| s.shadow_map_size)
                             .unwrap_or(2048);
 
-                        let spot_size = self
-                            .cached_video_settings
-                            .as_ref()
+                        let spot_size = video_opt
                             .and_then(|s| s.spot_shadow_map_size)
                             .unwrap_or(2048);
 
@@ -513,21 +490,28 @@ impl MyApp {
                         self.shadow_map_size_custom = map_size;
                         self.spot_shadow_map_size_custom = spot_size;
 
-                        let grass_val = self.cached_video_settings
-                            .as_ref()
+                        let grass_val = video_opt
                             .and_then(|s| s.grass_quality)
                             .unwrap_or(0);
 
                         self.foliage_quality = FoliageQuality::from_value(grass_val);
                         self.foliage_quality_custom = grass_val;
 
-                        let max_fps_val = self.cached_video_settings
-                            .as_ref()
+                        let max_fps_val = video_opt
                             .and_then(|s| s.max_fps)
                             .unwrap_or(0);
 
                         self.max_fps_preset = MaxFpsPreset::from_value(max_fps_val);
                         self.max_fps_custom = max_fps_val;
+
+                        self.vsync_enabled = video_opt.and_then(|s| Some(s.vsync)).unwrap();
+
+                        self.fullscreen = video_opt.map_or(false, |s| s.fullscreen);
+                        self.borderless = video_opt.map_or(false, |s| s.borderless);
+
+                        if self.fullscreen && self.borderless {
+                            self.fullscreen = false;
+                        }
                     }
                 }
             }
@@ -1192,6 +1176,67 @@ impl MyApp {
                         ui.add(egui::Checkbox::new(&mut self.vsync_enabled, ""));
                     });
                 });
+
+                /* Display Mode */
+                ui.horizontal(|ui| {
+                    ui.label("Display Mode:");
+
+                    let current_mode = if self.fullscreen {
+                        "Fullscreen"
+                    } else if self.borderless {
+                        "Borderless Windowed"
+                    } else {
+                        "Windowed"
+                    };
+
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.push_id("display_mode_combo", |ui| {
+                            let info_button = egui::Button::new(
+                                egui::RichText::new("i")
+                                    .strong()
+                                    .size(14.0)
+                                    .color(egui::Color32::ORANGE),
+                            )
+                            .frame(false)
+                            .min_size(egui::Vec2::new(20.0, 20.0))
+                            .corner_radius(10.0)
+                            .sense(egui::Sense::click());
+
+                            let info_button_response = ui.add(info_button);
+
+                            if info_button_response.hovered() {
+                                ui.ctx().output_mut(|o| {
+                                    o.cursor_icon = egui::CursorIcon::PointingHand;
+                                });
+                            }
+
+                            if info_button_response.clicked() {
+                                self.show_display_mode_info = true;
+                            }
+
+                            egui::ComboBox::from_label("")
+                                .selected_text(current_mode)
+                                .show_ui(ui, |ui| {
+                                    ui.selectable_value(&mut self.fullscreen, true, "Fullscreen")
+                                        .on_hover_text(
+                                            "Exclusive fullscreen mode (may alt-tab slower)",
+                                        );
+                                    ui.selectable_value(
+                                        &mut self.borderless,
+                                        true,
+                                        "Borderless Windowed",
+                                    )
+                                    .on_hover_text(
+                                        "Windowed fullscreen (fast alt-tab, overlays work better)",
+                                    );
+                                    ui.selectable_value(&mut self.fullscreen, false, "Windowed")
+                                        .on_hover_text(
+                                            "Regular windowed mode (default desktop window)",
+                                        );
+                                });
+                        });
+                    });
+                });
             } else {
                 ui.label(
                     egui::RichText::new("video.scr not parsed yet or missing")
@@ -1309,6 +1354,7 @@ impl MyApp {
                     self.cached_logs_count = count;
                 }
 
+                // TODO: Handle failure
                 if ui.button("Clear all").clicked() {
                     if self.config.game_path.is_empty() {
                         self.status = "Cannot clear all dumps: game directory not set".to_string();
@@ -1324,6 +1370,21 @@ impl MyApp {
                 }
             });
         });
+    }
+
+    /** Draws about window when it is needed. */
+    fn handle_info_windows(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+        self.handle_about_window(ui, ctx);
+        self.handle_video_readonly_about(ui, ctx);
+        self.handle_texture_quality_about(ui, ctx);
+        self.handle_shadow_quality_about(ui, ctx);
+        self.handle_foliage_quality_about(ui, ctx);
+        self.handle_max_fps_about(ui, ctx);
+        self.handle_fov_about(ui, ctx);
+        self.handle_gamma_about(ui, ctx);
+        self.handle_view_distance_about(ui, ctx);
+        self.handle_vsync_about(ui, ctx);
+        self.handle_display_mode_about(ui, ctx);
     }
 
     /** Draws about window when it is needed. */
@@ -1556,6 +1617,28 @@ impl MyApp {
                 });
             });
     }
+
+    /** Draws about Display Mode window when it is needed. */
+    fn handle_display_mode_about(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+        egui::Window::new("Display Mode Information")
+            .open(&mut self.show_display_mode_info)
+            .resizable(false)
+            .collapsible(false)
+            .default_pos(egui::pos2(
+                ui.available_width() / 2.,
+                ui.available_height() / 2.,
+            ))
+            .show(ctx, |ui| {
+                ui.vertical_centered(|ui| {
+                    ui.label(
+                        "Fullscreen: turns off DWM, faster (not alt-tab friendly)\n\
+                         Borderless Windowed: windowed fullscreen (alt-tab friendly, overlays work)\n\
+                         Windowed: regular desktop windowed\n\
+                         - Borderless overrides Fullscreen if both enabled in config",
+                    );
+                });
+            });
+    }
 }
 
 impl eframe::App for MyApp {
@@ -1626,16 +1709,7 @@ impl eframe::App for MyApp {
 
             self.show_cleanup_ui(ui);
 
-            self.handle_about_window(ui, ctx);
-            self.handle_video_readonly_about(ui, ctx);
-            self.handle_texture_quality_about(ui, ctx);
-            self.handle_shadow_quality_about(ui, ctx);
-            self.handle_foliage_quality_about(ui, ctx);
-            self.handle_max_fps_about(ui, ctx);
-            self.handle_fov_about(ui, ctx);
-            self.handle_gamma_about(ui, ctx);
-            self.handle_view_distance_about(ui, ctx);
-            self.handle_vsync_about(ui, ctx);
+            self.handle_info_windows(ui, ctx);
         });
     }
 

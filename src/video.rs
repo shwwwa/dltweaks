@@ -9,6 +9,8 @@ use crate::video_types::TextureQuality;
 #[derive(Debug, Default)]
 pub struct VideoSettings {
     pub resolution: Option<(u32, u32)>,
+    /** Is game fullscreen? */
+    pub fullscreen: bool,
     /** Is windowed is borderless in-game? */
     pub borderless: bool,
     /** Corresponds to vertical synchronisation of monitor in-game. */
@@ -17,14 +19,15 @@ pub struct VideoSettings {
     pub max_fps: Option<i32>,
     /** Corresponds to texture quality in-game. */
     pub texture_quality: Option<TextureQuality>,
-    /** Visibility range e.g. view distance in-game. Regular values: (1.0..2.4, 1.0..2.4). */
+    /** Corresponds to visibility range e.g. view distance in-game. Regular values: (1.0..2.4, 1.0..2.4). */
     pub vis_range: Option<(f32, f32)>,
     pub shadow_map_size: Option<u32>,
     pub spot_shadow_map_size: Option<u32>,
     /** Corresponds to gamma in-game. Regular values: 0.5..1.5. */
     pub gamma_float: Option<f32>,
+    /** Corresponds to foliage quality in-game. */
     pub grass_quality: Option<i32>,
-    /** Extra game fov added to usual fov in-game. Regular values: -10..20. */
+    /** Corresponds to extra game fov added to usual fov in-game. Regular values: -10..20. */
     pub extra_game_fov: Option<f32>,
     pub ambient_occlusion: Option<i32>,
     pub motion_blur: Option<i32>,
@@ -69,6 +72,7 @@ pub fn parse_video_scr() -> io::Result<VideoSettings> {
                         settings.resolution = Some((w, h));
                     }
                 }
+                "Fullscreen" => settings.fullscreen = true,
                 "Borderless" => settings.borderless = true,
                 "VSync" => settings.vsync = true,
                 "TextureQuality" => {
