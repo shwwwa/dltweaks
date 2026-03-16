@@ -56,7 +56,7 @@ fn main() -> eframe::Result {
         view_distance_slider_max: 0.0,
         max_fps_preset: MaxFpsPreset::Uncapped,
         max_fps_custom: 0,
-        vsync_enabled: false,
+        vsync: false,
         fullscreen: false,
         borderless: false,
         /* Show window switches */
@@ -138,7 +138,7 @@ fn main() -> eframe::Result {
         app.max_fps_preset = MaxFpsPreset::from_value(max_fps_val);
         app.max_fps_custom = max_fps_val;
 
-        app.vsync_enabled = video_opt.and_then(|s| Some(s.vsync)).unwrap();
+        app.vsync = video_opt.and_then(|s| Some(s.vsync)).unwrap();
 
         app.fullscreen = video_opt.map_or(false, |s| s.fullscreen);
         app.borderless = video_opt.map_or(false, |s| s.borderless);
@@ -207,7 +207,7 @@ struct MyApp {
     view_distance_slider_max: f32,
     max_fps_preset: MaxFpsPreset,
     max_fps_custom: i32,
-    vsync_enabled: bool,
+    vsync: bool,
     fullscreen: bool,
     borderless: bool,
     /* Show window switches */
@@ -420,7 +420,7 @@ impl MyApp {
                         self.max_fps_preset = MaxFpsPreset::from_value(max_fps_val);
                         self.max_fps_custom = max_fps_val;
 
-                        self.vsync_enabled = video_opt.and_then(|s| Some(s.vsync)).unwrap();
+                        self.vsync = video_opt.and_then(|s| Some(s.vsync)).unwrap();
 
                         self.fullscreen = video_opt.map_or(false, |s| s.fullscreen);
                         self.borderless = video_opt.map_or(false, |s| s.borderless);
@@ -504,7 +504,7 @@ impl MyApp {
                         self.max_fps_preset = MaxFpsPreset::from_value(max_fps_val);
                         self.max_fps_custom = max_fps_val;
 
-                        self.vsync_enabled = video_opt.and_then(|s| Some(s.vsync)).unwrap();
+                        self.vsync = video_opt.and_then(|s| Some(s.vsync)).unwrap();
 
                         self.fullscreen = video_opt.map_or(false, |s| s.fullscreen);
                         self.borderless = video_opt.map_or(false, |s| s.borderless);
@@ -626,8 +626,23 @@ impl MyApp {
                     [ui.available_width() - 120.0, 28.0],
                     egui::TextEdit::singleline(&mut self.launch_args)
                         .hint_text("Enter launch arguments")
-                        .desired_width(300.0),
+                        .desired_width(f32::INFINITY),
                 );
+
+                if ui
+                    .add(
+                        egui::Button::new(egui::RichText::new("Reset").size(14.0))
+                            .min_size(egui::vec2(70.0, 28.0))
+                            .corner_radius(6.0),
+                    )
+                    .clicked()
+                {
+                    self.settings.skip_intro_videos = false;
+                    self.settings.high_priority = false;
+                    self.settings.use_all_cores = false;
+                    self.launch_args.clear();
+                    self.status = Status::info("Launch arguments and options reset to defaults.");
+                }
             });
         });
     }
@@ -1223,7 +1238,7 @@ impl MyApp {
                             self.show_vsync_info = true;
                         }
 
-                        ui.add(egui::Checkbox::new(&mut self.vsync_enabled, ""));
+                        ui.add(egui::Checkbox::new(&mut self.vsync, ""));
                     });
                 });
 
