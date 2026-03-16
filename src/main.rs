@@ -1186,6 +1186,11 @@ impl MyApp {
                                     .update_while_editing(false)
                                     .range(0..=1000),
                             );
+
+                            // Band-aid fix for custom 0
+                            if self.max_fps_custom == 0 {
+                                self.max_fps_preset = MaxFpsPreset::Uncapped;
+                            }
                         });
                     });
                 }
@@ -1367,7 +1372,9 @@ impl MyApp {
                         self.status = Status::error("Cannot clear dumps: game directory not set");
                     } else {
                         match utils::clear_dumps(&self.config.game_path) {
-                            Ok(_) => self.status = Status::info("Crash dumps cleared."),
+                            Ok(_) => {
+                                self.status = Status::info("Successfully cleared crash dumps.")
+                            }
                             Err(e) => {
                                 self.status = Status::error(format!("Failed to clear dumps: {}", e))
                             }
@@ -1381,9 +1388,10 @@ impl MyApp {
 
                 if ui.button("Clear screenshots").clicked() {
                     match utils::clear_screenshots() {
-                        Ok(_) => self.status = Status::info("Crash dumps cleared."),
+                        Ok(_) => self.status = Status::info("Successfully cleared successfully."),
                         Err(e) => {
-                            self.status = Status::error(format!("Failed to clear dumps: {}", e))
+                            self.status =
+                                Status::error(format!("Failed to clear screenshots: {}", e))
                         }
                     }
 
@@ -1394,7 +1402,7 @@ impl MyApp {
 
                 if ui.button("Clear logs").clicked() {
                     match utils::clear_logs() {
-                        Ok(_) => self.status = Status::info("Logs cleared successfully."),
+                        Ok(_) => self.status = Status::info("Successfully cleared logs."),
                         Err(e) => {
                             self.status = Status::error(format!("Failed to clear logs: {}", e))
                         }
