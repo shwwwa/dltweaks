@@ -14,7 +14,7 @@ pub struct VideoSettings {
     /** Is windowed is borderless in-game? */
     pub borderless: bool,
     /** Corresponds to vertical synchronisation of monitor in-game. */
-    pub vsync: bool,
+    pub vsync: Option<i32>,
     /** Corresponds to framerate cap limit in-game. */
     pub max_fps: Option<i32>,
     /** Corresponds to texture quality in-game. */
@@ -29,8 +29,11 @@ pub struct VideoSettings {
     pub grass_quality: Option<i32>,
     /** Corresponds to extra game fov added to usual fov in-game. Regular values: -10..20. */
     pub extra_game_fov: Option<f32>,
+    /** Corresponds to ambient occlusion in-game. */
     pub ambient_occlusion: Option<i32>,
+    /** Corresponds to motion blur in-game. */
     pub motion_blur: Option<i32>,
+    /** Corresponds to anti-aliasing in-game. */
     pub anti_aliasing: Option<i32>,
     pub disable_dwm: Option<i32>,
 }
@@ -74,7 +77,11 @@ pub fn parse_video_scr() -> io::Result<VideoSettings> {
                 }
                 "Fullscreen" => settings.fullscreen = true,
                 "Borderless" => settings.borderless = true,
-                "VSync" => settings.vsync = true,
+                "VSync" => {
+                    if let Some(v) = parse_single_i32(value_part) {
+                        settings.anti_aliasing = Some(v);
+                    }
+                }
                 "TextureQuality" => {
                     if let Some(quality) = parse_quoted_string(value_part) {
                         settings.texture_quality = Some(TextureQuality::from_str(&quality));
@@ -135,7 +142,7 @@ pub fn parse_video_scr() -> io::Result<VideoSettings> {
                         settings.disable_dwm = Some(v);
                     }
                 }
-                "Version" | "Monitor" | "3dtvSettings" => {
+                "Version" | "Monitor" | "3dtvSettings" | "WindowOffset" => {
                     // we don't need those fields
                 }
                 key => {

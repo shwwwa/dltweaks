@@ -1,12 +1,14 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 pub mod config;
 pub mod status;
+pub mod types;
 pub mod utils;
 pub mod video;
 pub mod video_types;
 
 use crate::config::AppConfig;
 use crate::status::Status;
+use crate::types::EnabledDisabled;
 use crate::video::VideoSettings;
 use crate::video_types::{FoliageQuality, MaxFpsPreset, ShadowQuality, TextureQuality};
 use eframe::egui;
@@ -56,9 +58,12 @@ fn main() -> eframe::Result {
         view_distance_slider_max: 0.0,
         max_fps_preset: MaxFpsPreset::Uncapped,
         max_fps_custom: 0,
-        vsync: false,
         fullscreen: false,
         borderless: false,
+        ambient_occlusion: EnabledDisabled::default(),
+        motion_blur: EnabledDisabled::default(),
+        anti_aliasing: EnabledDisabled::default(),
+        vsync: EnabledDisabled::default(),
         /* Show window switches */
         show_about: false,
         show_video_readonly_info: false,
@@ -71,6 +76,9 @@ fn main() -> eframe::Result {
         show_max_fps_info: false,
         show_vsync_info: false,
         show_display_mode_info: false,
+        show_ambient_occlusion_info: false,
+        show_motion_blur_info: false,
+        show_anti_aliasing_info: false,
     };
 
     if !app.config.game_path.is_empty() {
@@ -138,14 +146,28 @@ fn main() -> eframe::Result {
         app.max_fps_preset = MaxFpsPreset::from_value(max_fps_val);
         app.max_fps_custom = max_fps_val;
 
-        app.vsync = video_opt.and_then(|s| Some(s.vsync)).unwrap();
-
         app.fullscreen = video_opt.map_or(false, |s| s.fullscreen);
         app.borderless = video_opt.map_or(false, |s| s.borderless);
 
         if app.fullscreen && app.borderless {
             app.fullscreen = false;
         }
+
+        app.vsync = video_opt
+            .and_then(|s| s.vsync.map(EnabledDisabled::from_i32))
+            .unwrap_or(EnabledDisabled::Disabled);
+
+        app.ambient_occlusion = video_opt
+            .and_then(|s| s.ambient_occlusion.map(EnabledDisabled::from_i32))
+            .unwrap_or(EnabledDisabled::Disabled);
+
+        app.motion_blur = video_opt
+            .and_then(|s| s.motion_blur.map(EnabledDisabled::from_i32))
+            .unwrap_or(EnabledDisabled::Disabled);
+
+        app.anti_aliasing = video_opt
+            .and_then(|s| s.anti_aliasing.map(EnabledDisabled::from_i32))
+            .unwrap_or(EnabledDisabled::Disabled);
     }
 
     eframe::run_native(PROGRAM_NAME, options, Box::new(|_cc| Ok(Box::new(app))))
@@ -186,7 +208,6 @@ struct MyApp {
     cached_screenshots_count: usize,
     cached_logs_mb: f64,
     cached_logs_count: usize,
-    /* None = unknown/not checked */
     video_readonly: Option<bool>,
     cached_video_settings: Option<VideoSettings>,
     /* Video settings of DL1 */
@@ -207,9 +228,12 @@ struct MyApp {
     view_distance_slider_max: f32,
     max_fps_preset: MaxFpsPreset,
     max_fps_custom: i32,
-    vsync: bool,
     fullscreen: bool,
     borderless: bool,
+    vsync: EnabledDisabled,
+    ambient_occlusion: EnabledDisabled,
+    motion_blur: EnabledDisabled,
+    anti_aliasing: EnabledDisabled,
     /* Show window switches */
     show_about: bool,
     show_video_readonly_info: bool,
@@ -222,6 +246,9 @@ struct MyApp {
     show_max_fps_info: bool,
     show_vsync_info: bool,
     show_display_mode_info: bool,
+    show_ambient_occlusion_info: bool,
+    show_motion_blur_info: bool,
+    show_anti_aliasing_info: bool,
 }
 
 /** Launches DL1 via steam://uri wrapper. */
@@ -370,8 +397,7 @@ impl MyApp {
                         self.cached_video_settings = Some(video);
                         let video_opt = self.cached_video_settings.as_ref();
 
-                        if let Some(fov) = video_opt
-                            .and_then(|s| s.extra_game_fov)
+                        if let Some(fov) = video_opt.and_then(|s| s.extra_game_fov)
                         {
                             self.extra_fov = fov;
                             self.extra_fov_slider_min = fov.min(-10.0);
@@ -420,14 +446,28 @@ impl MyApp {
                         self.max_fps_preset = MaxFpsPreset::from_value(max_fps_val);
                         self.max_fps_custom = max_fps_val;
 
-                        self.vsync = video_opt.and_then(|s| Some(s.vsync)).unwrap();
-
                         self.fullscreen = video_opt.map_or(false, |s| s.fullscreen);
                         self.borderless = video_opt.map_or(false, |s| s.borderless);
 
                         if self.fullscreen && self.borderless {
                             self.fullscreen = false;
                         }
+
+                        self.vsync = video_opt
+                            .and_then(|s| s.vsync.map(EnabledDisabled::from_i32))
+                            .unwrap_or(EnabledDisabled::Disabled);
+
+                        self.ambient_occlusion = video_opt
+                            .and_then(|s| s.ambient_occlusion.map(EnabledDisabled::from_i32))
+                            .unwrap_or(EnabledDisabled::Disabled);
+
+                        self.motion_blur = video_opt
+                            .and_then(|s| s.motion_blur.map(EnabledDisabled::from_i32))
+                            .unwrap_or(EnabledDisabled::Disabled);
+
+                        self.anti_aliasing = video_opt
+                            .and_then(|s| s.anti_aliasing.map(EnabledDisabled::from_i32))
+                            .unwrap_or(EnabledDisabled::Disabled);
                     }
                 }
             }
@@ -504,14 +544,28 @@ impl MyApp {
                         self.max_fps_preset = MaxFpsPreset::from_value(max_fps_val);
                         self.max_fps_custom = max_fps_val;
 
-                        self.vsync = video_opt.and_then(|s| Some(s.vsync)).unwrap();
-
                         self.fullscreen = video_opt.map_or(false, |s| s.fullscreen);
                         self.borderless = video_opt.map_or(false, |s| s.borderless);
 
                         if self.fullscreen && self.borderless {
                             self.fullscreen = false;
                         }
+
+                        self.vsync = video_opt
+                            .and_then(|s| s.vsync.map(EnabledDisabled::from_i32))
+                            .unwrap_or(EnabledDisabled::Disabled);
+
+                        self.ambient_occlusion = video_opt
+                            .and_then(|s| s.ambient_occlusion.map(EnabledDisabled::from_i32))
+                            .unwrap_or(EnabledDisabled::Disabled);
+
+                        self.motion_blur = video_opt
+                            .and_then(|s| s.motion_blur.map(EnabledDisabled::from_i32))
+                            .unwrap_or(EnabledDisabled::Disabled);
+
+                        self.anti_aliasing = video_opt
+                            .and_then(|s| s.anti_aliasing.map(EnabledDisabled::from_i32))
+                            .unwrap_or(EnabledDisabled::Disabled);
                     }
                 }
             }
@@ -592,6 +646,52 @@ impl MyApp {
         };
 
         ui.label(config_text);
+    }
+
+    fn draw_enabled_disabled_combo(
+        ui: &mut egui::Ui,
+        label: impl Into<String>,
+        combo_id: impl Into<String>,
+        info_window: &mut bool,
+        value: &mut EnabledDisabled,
+    ) {
+        ui.horizontal(|ui| {
+            ui.label(label.into());
+
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.push_id(combo_id.into(), |ui| {
+                    let info_button = egui::Button::new(
+                        egui::RichText::new("i")
+                            .strong()
+                            .size(14.0)
+                            .color(egui::Color32::ORANGE),
+                    )
+                    .frame(false)
+                    .min_size(egui::Vec2::new(20.0, 20.0))
+                    .corner_radius(10.0)
+                    .sense(egui::Sense::click());
+
+                    let response = ui.add(info_button);
+
+                    if response.hovered() {
+                        ui.ctx().output_mut(|o| {
+                            o.cursor_icon = egui::CursorIcon::PointingHand;
+                        });
+                    }
+
+                    if response.clicked() {
+                        *info_window = true;
+                    }
+
+                    egui::ComboBox::from_label("")
+                        .selected_text(value.as_str())
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(value, EnabledDisabled::Enabled, "Enabled");
+                            ui.selectable_value(value, EnabledDisabled::Disabled, "Disabled");
+                        });
+                });
+            });
+        });
     }
 
     /** Shows launch UI. */
@@ -749,6 +849,67 @@ impl MyApp {
             });
 
             if let Some(video) = &self.cached_video_settings {
+                /* Display Mode */
+                ui.horizontal(|ui| {
+                    ui.label("Display Mode:");
+
+                    let current_mode = if self.fullscreen {
+                        "Fullscreen"
+                    } else if self.borderless {
+                        "Borderless Windowed"
+                    } else {
+                        "Windowed"
+                    };
+
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.push_id("display_mode_combo", |ui| {
+                            let info_button = egui::Button::new(
+                                egui::RichText::new("i")
+                                    .strong()
+                                    .size(14.0)
+                                    .color(egui::Color32::ORANGE),
+                            )
+                            .frame(false)
+                            .min_size(egui::Vec2::new(20.0, 20.0))
+                            .corner_radius(10.0)
+                            .sense(egui::Sense::click());
+
+                            let info_button_response = ui.add(info_button);
+
+                            if info_button_response.hovered() {
+                                ui.ctx().output_mut(|o| {
+                                    o.cursor_icon = egui::CursorIcon::PointingHand;
+                                });
+                            }
+
+                            if info_button_response.clicked() {
+                                self.show_display_mode_info = true;
+                            }
+
+                            egui::ComboBox::from_label("")
+                                .selected_text(current_mode)
+                                .show_ui(ui, |ui| {
+                                    ui.selectable_value(&mut self.fullscreen, true, "Fullscreen")
+                                        .on_hover_text(
+                                            "Exclusive fullscreen mode (may alt-tab slower)",
+                                        );
+                                    ui.selectable_value(
+                                        &mut self.borderless,
+                                        true,
+                                        "Borderless Windowed",
+                                    )
+                                    .on_hover_text(
+                                        "Windowed fullscreen (fast alt-tab, overlays work better)",
+                                    );
+                                    ui.selectable_value(&mut self.fullscreen, false, "Windowed")
+                                        .on_hover_text(
+                                            "Regular windowed mode (default desktop window)",
+                                        );
+                                });
+                        });
+                    });
+                });
+
                 /* Texture Quality */
                 ui.horizontal(|ui| {
                     ui.label("Texture Quality:");
@@ -1202,7 +1363,6 @@ impl MyApp {
                                     .range(0..=1000),
                             );
 
-                            // Band-aid fix for custom 0
                             if self.max_fps_custom == 0 {
                                 self.max_fps_preset = MaxFpsPreset::Uncapped;
                             }
@@ -1210,98 +1370,37 @@ impl MyApp {
                     });
                 }
 
-                /* VSync */
-                ui.horizontal(|ui| {
-                    ui.label("VSync:");
+                Self::draw_enabled_disabled_combo(
+                    ui,
+                    "VSync:",
+                    "vsync_combo",
+                    &mut self.show_vsync_info,
+                    &mut self.vsync,
+                );
 
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let info_button = egui::Button::new(
-                            egui::RichText::new("i")
-                                .strong()
-                                .size(14.0)
-                                .color(egui::Color32::ORANGE),
-                        )
-                        .frame(false)
-                        .min_size(egui::Vec2::new(20.0, 20.0))
-                        .corner_radius(10.0)
-                        .sense(egui::Sense::click());
+                Self::draw_enabled_disabled_combo(
+                    ui,
+                    "Ambient Occlusion:",
+                    "ambient_occlusion_combo",
+                    &mut self.show_ambient_occlusion_info,
+                    &mut self.ambient_occlusion,
+                );
 
-                        let info_button_response = ui.add(info_button);
+                Self::draw_enabled_disabled_combo(
+                    ui,
+                    "Motion Blur:",
+                    "motion_blur_combo",
+                    &mut self.show_motion_blur_info,
+                    &mut self.motion_blur,
+                );
 
-                        if info_button_response.hovered() {
-                            ui.ctx().output_mut(|o| {
-                                o.cursor_icon = egui::CursorIcon::PointingHand;
-                            });
-                        }
-
-                        if info_button_response.clicked() {
-                            self.show_vsync_info = true;
-                        }
-
-                        ui.add(egui::Checkbox::new(&mut self.vsync, ""));
-                    });
-                });
-
-                /* Display Mode */
-                ui.horizontal(|ui| {
-                    ui.label("Display Mode:");
-
-                    let current_mode = if self.fullscreen {
-                        "Fullscreen"
-                    } else if self.borderless {
-                        "Borderless Windowed"
-                    } else {
-                        "Windowed"
-                    };
-
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.push_id("display_mode_combo", |ui| {
-                            let info_button = egui::Button::new(
-                                egui::RichText::new("i")
-                                    .strong()
-                                    .size(14.0)
-                                    .color(egui::Color32::ORANGE),
-                            )
-                            .frame(false)
-                            .min_size(egui::Vec2::new(20.0, 20.0))
-                            .corner_radius(10.0)
-                            .sense(egui::Sense::click());
-
-                            let info_button_response = ui.add(info_button);
-
-                            if info_button_response.hovered() {
-                                ui.ctx().output_mut(|o| {
-                                    o.cursor_icon = egui::CursorIcon::PointingHand;
-                                });
-                            }
-
-                            if info_button_response.clicked() {
-                                self.show_display_mode_info = true;
-                            }
-
-                            egui::ComboBox::from_label("")
-                                .selected_text(current_mode)
-                                .show_ui(ui, |ui| {
-                                    ui.selectable_value(&mut self.fullscreen, true, "Fullscreen")
-                                        .on_hover_text(
-                                            "Exclusive fullscreen mode (may alt-tab slower)",
-                                        );
-                                    ui.selectable_value(
-                                        &mut self.borderless,
-                                        true,
-                                        "Borderless Windowed",
-                                    )
-                                    .on_hover_text(
-                                        "Windowed fullscreen (fast alt-tab, overlays work better)",
-                                    );
-                                    ui.selectable_value(&mut self.fullscreen, false, "Windowed")
-                                        .on_hover_text(
-                                            "Regular windowed mode (default desktop window)",
-                                        );
-                                });
-                        });
-                    });
-                });
+                Self::draw_enabled_disabled_combo(
+                    ui,
+                    "Anti-Aliasing:",
+                    "anti_aliasing_combo",
+                    &mut self.show_anti_aliasing_info,
+                    &mut self.anti_aliasing,
+                );
             } else {
                 ui.label(
                     egui::RichText::new("video.scr not parsed yet or missing")
