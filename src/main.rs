@@ -1276,7 +1276,7 @@ impl MyApp {
 
                 /* Framerate Limit */
                 ui.horizontal(|ui| {
-                    ui.label("Franerate Limit:");
+                    ui.label("Framerate Limit:");
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.push_id("framerate_limit_combo", |ui| {
