@@ -1,10 +1,12 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 pub mod config;
+pub mod status;
 pub mod utils;
 pub mod video;
 pub mod video_types;
 
 use crate::config::AppConfig;
+use crate::status::Status;
 use crate::video::VideoSettings;
 use crate::video_types::{FoliageQuality, MaxFpsPreset, ShadowQuality, TextureQuality};
 use eframe::egui;
@@ -24,7 +26,7 @@ fn main() -> eframe::Result {
 
     let mut app = MyApp {
         config: config::load_config(),
-        status: "".to_string(),
+        status: Status::neutral("Ready"),
         launch_args: "".to_string(),
         settings: AppSettings::default(),
         /* Cached app stats */
@@ -174,7 +176,7 @@ impl Default for AppSettings {
 #[derive(Default)]
 struct MyApp {
     config: AppConfig,
-    status: String,
+    status: Status,
     launch_args: String,
     settings: AppSettings,
     /* Cached app stats */
@@ -223,7 +225,7 @@ struct MyApp {
 }
 
 /** Launches DL1 via steam://uri wrapper. */
-fn launch_steam(settings: &AppSettings, custom_args: &str, status: &mut String) {
+fn launch_steam(settings: &AppSettings, custom_args: &str, status: &mut Status) {
     let mut steam_args = Vec::new();
 
     if settings.skip_intro_videos {
@@ -255,20 +257,20 @@ fn launch_steam(settings: &AppSettings, custom_args: &str, status: &mut String) 
 
     match open::that(&uri) {
         Ok(_) => {
-            *status = "Successfully launched via Steam URI (AppID 239140)".to_string();
+            *status = Status::success("Successfully launched the game!".to_string());
         }
         Err(e) => {
-            *status = format!("Steam launch failed: {}", e);
+            *status = Status::error(format!("Steam launch: {}", e));
         }
     }
 }
 
 /** Launches DL1 via std::process. */
-fn launch_direct(game_path: &str, settings: &AppSettings, custom_args: &str, status: &mut String) {
+fn launch_direct(game_path: &str, settings: &AppSettings, custom_args: &str, status: &mut Status) {
     let exe_path = std::path::Path::new(game_path).join(EXECUTABLE_NAME);
 
     if !exe_path.exists() {
-        *status = format!("Cannot launch {}: not found", exe_path.display());
+        *status = Status::error(format!("Cannot launch {}: not found", exe_path.display()));
         return;
     }
 
@@ -293,10 +295,10 @@ fn launch_direct(game_path: &str, settings: &AppSettings, custom_args: &str, sta
 
     match cmd.spawn() {
         Ok(_) => {
-            *status = "Successfully launched the game!".to_string();
+            *status = Status::success("Successfully launched the game!".to_string());
         }
         Err(e) => {
-            *status = format!("Failed to launch: {}", e);
+            *status = Status::error(format!("Failed to launch: {}", e));
         }
     }
 }
@@ -347,8 +349,7 @@ impl MyApp {
         ui.horizontal(|ui| {
             if ui.button("Launch Game").clicked() {
                 if self.config.game_path.is_empty() && !self.config.use_steam_launch {
-                    self.status =
-                        "You can't launch the game while game directory is not set (or use Steam launch fallback).".to_string();
+                    Status::error("You can't launch the game while game directory is not set (or use Steam launch fallback).");
                 } else {
                     let custom_args = self.launch_args.trim();
 
@@ -433,8 +434,7 @@ impl MyApp {
 
             if ui.button("Launch Game w/o args").clicked() {
                 if self.config.game_path.is_empty() && !self.config.use_steam_launch {
-                    self.status =
-                        "You can't launch the game while game directory is not set (or use Steam launch fallback).".to_string();
+                     Status::error("You can't launch the game while game directory is not set (or use Steam launch fallback).");
                 } else {
                     let custom_args = self.launch_args.trim();
 
@@ -544,15 +544,15 @@ impl MyApp {
                         let exe_path =
                             std::path::Path::new(&self.config.game_path).join(EXECUTABLE_NAME);
                         if exe_path.exists() {
-                            self.status = "Valid game location".to_string();
+                            self.status = Status::success("Dying Light executable was detected.");
                         } else {
-                            self.status =
-                                "Dying Light executable was not found in selected folder."
-                                    .to_string();
+                            self.status = Status::warning(
+                                "Dying Light executable was not found in selected folder.",
+                            );
                         }
 
                         if let Err(e) = config::save_config(&self.config) {
-                            self.status = format!("Failed to save config: {}", e);
+                            self.status = Status::error(format!("Failed to save config: {}", e));
                         }
                     }
                 }
@@ -577,13 +577,7 @@ impl MyApp {
         ui.add_space(6.0);
 
         if !self.status.is_empty() {
-            let color = if self.status.starts_with("Valid") || self.status.starts_with("Success") {
-                egui::Color32::GREEN
-            } else {
-                egui::Color32::RED
-            };
-
-            ui.colored_label(color, &self.status);
+            ui.colored_label(self.status.color, &self.status.text);
         }
 
         if !self.config.game_path.is_empty() {
@@ -673,17 +667,20 @@ impl MyApp {
                                 {
                                     Ok(_) => {
                                         self.status =
-                                            "Opened folder with video.scr selected".to_string();
+                                            Status::info("Opened folder with video.scr selected.");
                                     }
                                     Err(e) => {
-                                        self.status = format!("Failed to open Explorer: {}", e);
+                                        self.status = Status::error(format!(
+                                            "Failed to open Explorer: {}.",
+                                            e
+                                        ));
                                     }
                                 }
                             } else {
-                                self.status = "video.scr file not found".to_string();
+                                self.status = Status::error("video.scr file not found.");
                             }
                         } else {
-                            self.status = "Documents folder not found".to_string();
+                            self.status = Status::error("Documents folder not found.");
                         }
                     }
                 }
@@ -705,7 +702,8 @@ impl MyApp {
                             self.video_readonly = Some(new_state);
                         }
                         Err(e) => {
-                            self.status = format!("Failed to change permissions: {}", e);
+                            self.status =
+                                Status::warning(format!("Failed to change permissions: {}", e));
                             self.video_readonly = Some(!target_readonly);
                         }
                     }
@@ -1315,10 +1313,10 @@ impl MyApp {
                 if ui.button("Open Folder").clicked() {
                     if self.config.game_path.is_empty() {
                         self.status =
-                            "Cannot open dumps folder: game directory not set".to_string();
+                            Status::warning("Cannot open dumps folder: game directory not set");
                     } else {
                         utils::open_dumps_folder(&self.config.game_path);
-                        self.status = "Opened dumps folder".to_string();
+                        self.status = Status::info("Opened dumps folder.");
                     }
                 }
             });
@@ -1338,7 +1336,7 @@ impl MyApp {
                 ui.add_space(16.0);
                 if ui.button("Open Folder").clicked() {
                     utils::open_screenshots_folder();
-                    self.status = "Opened screenshots folder".to_string();
+                    self.status = Status::info("Opened screenshots folder.");
                 }
             });
 
@@ -1357,7 +1355,7 @@ impl MyApp {
                 ui.add_space(16.0);
                 if ui.button("Open Folder").clicked() {
                     utils::open_logs_folder();
-                    self.status = "Opened logs folder".to_string();
+                    self.status = Status::info("Opened logs folder.");
                 }
             });
 
@@ -1366,11 +1364,13 @@ impl MyApp {
             ui.horizontal_wrapped(|ui| {
                 if ui.button("Clear crash dumps").clicked() {
                     if self.config.game_path.is_empty() {
-                        self.status = "Cannot clear dumps: game directory not set".to_string();
+                        self.status = Status::error("Cannot clear dumps: game directory not set");
                     } else {
                         match utils::clear_dumps(&self.config.game_path) {
-                            Ok(_) => self.status = "Crash dumps cleared".to_string(),
-                            Err(e) => self.status = format!("Failed to clear dumps: {}", e),
+                            Ok(_) => self.status = Status::info("Crash dumps cleared."),
+                            Err(e) => {
+                                self.status = Status::error(format!("Failed to clear dumps: {}", e))
+                            }
                         }
 
                         let (mb, count) = utils::get_dumps_stats(&self.config.game_path);
@@ -1381,19 +1381,23 @@ impl MyApp {
 
                 if ui.button("Clear screenshots").clicked() {
                     match utils::clear_screenshots() {
-                        Ok(_) => self.status = "Screenshots cleared successfully".to_string(),
-                        Err(e) => self.status = format!("Failed to clear screenshots: {}", e),
+                        Ok(_) => self.status = Status::info("Crash dumps cleared."),
+                        Err(e) => {
+                            self.status = Status::error(format!("Failed to clear dumps: {}", e))
+                        }
                     }
 
-                    let (mb, count) = utils::get_screenshots_stats();
-                    self.cached_screenshots_mb = mb;
-                    self.cached_screenshots_count = count;
+                    let (mb, count) = utils::get_dumps_stats(&self.config.game_path);
+                    self.cached_dumps_mb = mb;
+                    self.cached_dumps_count = count;
                 }
 
                 if ui.button("Clear logs").clicked() {
                     match utils::clear_logs() {
-                        Ok(_) => self.status = "Logs cleared successfully".to_string(),
-                        Err(e) => self.status = format!("Failed to clear logs: {}", e),
+                        Ok(_) => self.status = Status::info("Logs cleared successfully."),
+                        Err(e) => {
+                            self.status = Status::error(format!("Failed to clear logs: {}", e))
+                        }
                     }
 
                     let (mb, count) = utils::get_logs_stats();
@@ -1404,7 +1408,8 @@ impl MyApp {
                 // TODO: Handle failure
                 if ui.button("Clear all").clicked() {
                     if self.config.game_path.is_empty() {
-                        self.status = "Cannot clear all dumps: game directory not set".to_string();
+                        self.status =
+                            Status::error("Cannot clear all dumps: game directory not set");
                     } else {
                         let _ = utils::clear_dumps(&self.config.game_path).is_ok();
                         let _ = utils::clear_screenshots();
@@ -1412,7 +1417,7 @@ impl MyApp {
 
                         self.cache_file_stats();
 
-                        self.status = "Tried to clear everything".to_string();
+                        self.status = Status::info("Tried to clear everything.");
                     }
                 }
             });
