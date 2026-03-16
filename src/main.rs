@@ -641,8 +641,55 @@ impl MyApp {
     /** Shows video UI (video.scr). */
     fn show_video_ui(&mut self, ui: &mut egui::Ui) {
         ui.group(|ui| {
-            ui.heading("Video Settings");
+            ui.horizontal(|ui| {
+                ui.heading("Video Settings");
 
+                // Windows Specific Code
+                if cfg!(target_os = "windows") {
+                    let open_file_btn = egui::Button::new(egui::RichText::new("📁").size(18.0))
+                        .frame(false)
+                        .min_size(egui::vec2(32.0, 28.0))
+                        .corner_radius(8.0);
+
+                    let response = ui
+                        .add(open_file_btn)
+                        .on_hover_text("Open video.scr in default editor");
+
+                    if response.hovered() {
+                        ui.ctx()
+                            .output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
+                    }
+
+                    if response.clicked() {
+                        if let Some(path) = video::get_video_scr_path() {
+                            if path.is_file() {
+                                let path_str = path.to_string_lossy().to_string();
+                                let cmd = format!(r#"explorer /select,"{}""#, path_str);
+
+                                match std::process::Command::new("cmd")
+                                    .arg("/C")
+                                    .arg(&cmd)
+                                    .spawn()
+                                {
+                                    Ok(_) => {
+                                        self.status =
+                                            "Opened folder with video.scr selected".to_string();
+                                    }
+                                    Err(e) => {
+                                        self.status = format!("Failed to open Explorer: {}", e);
+                                    }
+                                }
+                            } else {
+                                self.status = "video.scr file not found".to_string();
+                            }
+                        } else {
+                            self.status = "Documents folder not found".to_string();
+                        }
+                    }
+                }
+            });
+
+            /* Read-Only */
             ui.horizontal(|ui| {
                 let mut checked = self.video_readonly.unwrap_or(false);
                 let response = ui.add_enabled(
