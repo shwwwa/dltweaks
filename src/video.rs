@@ -5,6 +5,32 @@ use std::path::PathBuf;
 
 use crate::video_types::{AdditionalShadows, TextureQuality};
 
+pub const VIDEO_SCR_COMMENTS: [&str; 20] = [
+    "!Resolution(i,i)",
+    "!WindowOffset(i,i)",
+    "!Monitor(i)                    // -1 primary monitor",
+    "!TextureQuality(s)             // Low, Medium, High",
+    "!GammaFloat(f)",
+    "!Shadows(s)                    // Low, High",
+    "!ShadowMapSize(i)",
+    "!SpotShadowMapSize(i)",
+    "!Fullscreen()",
+    "!Borderless()",
+    "!MaxFPS(i)						// Max frame rate",
+    "!VSync()                       // enable vertical sync",
+    "!GrassQuality(i)               // lower is better",
+    "!NvidiaEffects(i,i,i)          // enable extra nvidia effects(hbao+,dof,pcss)",
+    "!ExtraGameFov(f)               // extra fov",
+    "!VisRange(f,f)",
+    "!OculusEnabled()               // enable support for Oculus",
+    "!AmbientOcclusion(i)           // 1 - enable; 0 - disable",
+    "!MotionBlur(i)                 // 1 - enable; 0 - disable",
+    "!AntiAliasing(i)               // 1 - enable; 0 - disable",
+    "!DisableDWM(i)                 // disables DWM when fullscreen",
+    "!3dtvSettings(f,f)           // /3dtv ui depth, scene separation/offset (-0.15, 0.041, -0.00722)",
+    "!Version(i)",
+];
+
 /** Parsed video settings from video.scr. */
 #[derive(Debug, Default)]
 pub struct VideoSettings {
