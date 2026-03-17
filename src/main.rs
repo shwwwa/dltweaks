@@ -42,6 +42,7 @@ fn main() -> eframe::Result {
         cached_logs_mb: 0.0,
         cached_logs_count: 0,
         cached_video_settings: None,
+        is_reloading_video: false,
         video_readonly: None,
         /* Video settings of DL1 */
         resolution_preset: ResolutionPreset::R1920x1080,
@@ -161,6 +162,7 @@ struct MyApp {
     cached_logs_mb: f64,
     cached_logs_count: usize,
     video_readonly: Option<bool>,
+    is_reloading_video: bool,
     cached_video_settings: Option<VideoSettings>,
     /* Video settings of DL1 */
     resolution_preset: ResolutionPreset,
@@ -315,6 +317,8 @@ impl MyApp {
     }
 
     fn reload_video_settings_from_file(&mut self) -> bool {
+        self.is_reloading_video = true;
+
         match video::parse_video_scr() {
             Ok(video) => {
                 self.cached_video_settings = Some(video);
@@ -1171,7 +1175,7 @@ impl MyApp {
                         });
                     });
                 });
-                if self.foliage_quality == FoliageQuality::Custom {
+                if self.foliage_quality == FoliageQuality::Custom && !self.is_reloading_video {
                     ui.horizontal(|ui| {
                         ui.label("Grass Quality:");
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -1247,7 +1251,7 @@ impl MyApp {
                         });
                     });
                 });
-                if self.shadow_quality == ShadowQuality::Custom {
+                if self.shadow_quality == ShadowQuality::Custom && !self.is_reloading_video {
                     ui.horizontal(|ui| {
                         ui.label("Shadow Map Size:");
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -1402,7 +1406,7 @@ impl MyApp {
                         });
                     });
                 });
-                if self.max_fps_preset == MaxFpsPreset::Custom {
+                if self.max_fps_preset == MaxFpsPreset::Custom && !self.is_reloading_video {
                     ui.horizontal(|ui| {
                         ui.label("Max FPS:");
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -1514,7 +1518,11 @@ impl MyApp {
                     if ui
                         .button(egui::RichText::new("Discard").size(16.0))
                         .clicked()
-                    {}
+                    {
+                        if self.reload_video_settings_from_file() {
+                            self.status = Status::success("Successfully discarded changes.");
+                        }
+                    }
                 });
             } else {
                 ui.label(
@@ -1999,6 +2007,8 @@ impl eframe::App for MyApp {
             self.show_cleanup_ui(ui);
 
             self.handle_info_windows(ui, ctx);
+
+            self.is_reloading_video = false;
         });
     }
 
