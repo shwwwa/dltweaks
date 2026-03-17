@@ -3,11 +3,12 @@ use std::fs;
 use std::io::{self, BufRead};
 use std::path::PathBuf;
 
-use crate::video_types::TextureQuality;
+use crate::video_types::{AdditionalShadows, TextureQuality};
 
 /** Parsed video settings from video.scr. */
 #[derive(Debug, Default)]
 pub struct VideoSettings {
+    /** Game resolution (width, height) */
     pub resolution: Option<(u32, u32)>,
     /** Is game fullscreen? */
     pub fullscreen: bool,
@@ -21,6 +22,7 @@ pub struct VideoSettings {
     pub texture_quality: Option<TextureQuality>,
     /** Corresponds to visibility range e.g. view distance in-game. Regular values: (1.0..2.4, 1.0..2.4). */
     pub vis_range: Option<(f32, f32)>,
+    pub shadows: Option<AdditionalShadows>,
     pub shadow_map_size: Option<u32>,
     pub spot_shadow_map_size: Option<u32>,
     /** Corresponds to gamma in-game. Regular values: 0.5..1.5. */
@@ -35,7 +37,12 @@ pub struct VideoSettings {
     pub motion_blur: Option<i32>,
     /** Corresponds to anti-aliasing in-game. */
     pub anti_aliasing: Option<i32>,
+    /** Corresponds to DWM optimisations in fullscreen in-game. */
     pub disable_dwm: Option<i32>,
+    /** Corresponds to Oculus VR Support in-game.*/
+    pub oculus_enabled: bool,
+    /** Corresponds to Nvidia effects in-game (hbao+, dof, pcss). */
+    pub nvidia_effects: Option<(i32, i32, i32)>,
 }
 
 /** Parse video.scr file and return structured settings. */
@@ -77,6 +84,7 @@ pub fn parse_video_scr() -> io::Result<VideoSettings> {
                 }
                 "Fullscreen" => settings.fullscreen = true,
                 "Borderless" => settings.borderless = true,
+                "OculusEnabled" => settings.oculus_enabled = true,
                 "VSync" => {
                     if let Some(v) = parse_single_i32(value_part) {
                         settings.anti_aliasing = Some(v);
@@ -85,6 +93,11 @@ pub fn parse_video_scr() -> io::Result<VideoSettings> {
                 "TextureQuality" => {
                     if let Some(quality) = parse_quoted_string(value_part) {
                         settings.texture_quality = Some(TextureQuality::from_str(&quality));
+                    }
+                }
+                "Shadows" => {
+                    if let Some(s) = parse_quoted_string(value_part) {
+                        settings.shadows = Some(AdditionalShadows::from_str(&s));
                     }
                 }
                 "VisRange" => {
@@ -140,6 +153,17 @@ pub fn parse_video_scr() -> io::Result<VideoSettings> {
                 "DisableDWM" => {
                     if let Some(v) = parse_single_i32(value_part) {
                         settings.disable_dwm = Some(v);
+                    }
+                }
+                "NvidiaEffects" => {
+                    let parts: Vec<&str> = value_part.split(',').map(|p| p.trim()).collect();
+                    if parts.len() == 3 {
+                        let a = parts[0].parse::<i32>().ok();
+                        let b = parts[1].parse::<i32>().ok();
+                        let c = parts[2].parse::<i32>().ok();
+                        if let (Some(a), Some(b), Some(c)) = (a, b, c) {
+                            settings.nvidia_effects = Some((a, b, c));
+                        }
                     }
                 }
                 "Version" | "Monitor" | "3dtvSettings" | "WindowOffset" => {

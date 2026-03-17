@@ -174,3 +174,101 @@ impl MaxFpsPreset {
         }
     }
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ResolutionPreset {
+    #[default]
+    Custom,
+    R1024x768,
+    R1128x634,
+    R1280x720,
+    R1280x1024,
+    R1366x768,
+    R1440x900,
+    R1600x900,
+    R1600x1200,
+    R1680x1050,
+    R1760x990,
+    R1920x1080,
+    R1920x1200,
+    R2560x1440,
+}
+
+impl ResolutionPreset {
+    pub fn from_values(w: u32, h: u32) -> Self {
+        match (w, h) {
+            (1024, 768) => Self::R1024x768,
+            (1128, 634) => Self::R1128x634,
+            (1280, 720) => Self::R1280x720,
+            (1280, 1024) => Self::R1280x1024,
+            (1366, 768) => Self::R1366x768,
+            (1440, 900) => Self::R1440x900,
+            (1600, 900) => Self::R1600x900,
+            (1600, 1200) => Self::R1600x1200,
+            (1680, 1050) => Self::R1680x1050,
+            (1760, 990) => Self::R1760x990,
+            (1920, 1080) => Self::R1920x1080,
+            (1920, 1200) => Self::R1920x1200,
+            (2560, 1440) => Self::R2560x1440,
+            _ => Self::Custom,
+        }
+    }
+
+    pub fn as_tuple(&self) -> (u32, u32) {
+        match self {
+            Self::R1024x768 => (1024, 768),
+            Self::R1128x634 => (1128, 634),
+            Self::R1280x720 => (1280, 720),
+            Self::R1280x1024 => (1280, 1024),
+            Self::R1366x768 => (1366, 768),
+            Self::R1440x900 => (1440, 900),
+            Self::R1600x900 => (1600, 900),
+            Self::R1600x1200 => (1600, 1200),
+            Self::R1680x1050 => (1680, 1050),
+            Self::R1760x990 => (1760, 990),
+            Self::R1920x1080 => (1920, 1080),
+            Self::R1920x1200 => (1920, 1200),
+            Self::R2560x1440 => (2560, 1440),
+            Self::Custom => (1920, 1080),
+        }
+    }
+
+    pub fn as_str(&self) -> String {
+        let (w, h) = self.as_tuple();
+        format!("{}x{} [{}:{}]", w, h, w / gcd(w, h), h / gcd(w, h))
+    }
+}
+
+fn gcd(a: u32, b: u32) -> u32 {
+    if b == 0 {
+        a
+    } else {
+        gcd(b, a % b)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum AdditionalShadows {
+    #[default]
+    Off,
+    Low,
+    High,
+}
+
+impl AdditionalShadows {
+    pub fn from_str(s: &str) -> Self {
+        match s.trim().to_lowercase().as_str() {
+            "low" => Self::Low,
+            "high" => Self::High,
+            _ => Self::Off,
+        }
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Off => "Off",
+            Self::Low => "Low",
+            Self::High => "High",
+        }
+    }
+}
