@@ -437,28 +437,7 @@ impl MyApp {
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.push_id(combo_id.into(), |ui| {
-                    let info_button = egui::Button::new(
-                        egui::RichText::new("i")
-                            .strong()
-                            .size(14.0)
-                            .color(egui::Color32::ORANGE),
-                    )
-                    .frame(false)
-                    .min_size(egui::Vec2::new(20.0, 20.0))
-                    .corner_radius(10.0)
-                    .sense(egui::Sense::click());
-
-                    let response = ui.add(info_button);
-
-                    if response.hovered() {
-                        ui.ctx().output_mut(|o| {
-                            o.cursor_icon = egui::CursorIcon::PointingHand;
-                        });
-                    }
-
-                    if response.clicked() {
-                        *info_window = true;
-                    }
+                    Self::draw_info_button(ui, info_window);
 
                     egui::ComboBox::from_label("")
                         .selected_text(value.as_str())
@@ -471,7 +450,7 @@ impl MyApp {
         });
     }
 
-    /** Draws slider with specified range and step. */
+    /** Draws slider with specified range/step. */
     fn draw_slider(
         ui: &mut egui::Ui,
         label: impl Into<String>,
@@ -484,28 +463,7 @@ impl MyApp {
             ui.label(label.into());
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                let info_button = egui::Button::new(
-                    egui::RichText::new("i")
-                        .strong()
-                        .size(14.0)
-                        .color(egui::Color32::ORANGE),
-                )
-                .frame(false)
-                .min_size(egui::Vec2::new(20.0, 20.0))
-                .corner_radius(10.0)
-                .sense(egui::Sense::click());
-
-                let response = ui.add(info_button);
-
-                if response.hovered() {
-                    ui.ctx().output_mut(|o| {
-                        o.cursor_icon = egui::CursorIcon::PointingHand;
-                    });
-                }
-
-                if response.clicked() {
-                    *info_window = true;
-                }
+                Self::draw_info_button(ui, info_window);
 
                 ui.add_sized(
                     [ui.available_width() - 100.0, 24.0],
@@ -516,6 +474,32 @@ impl MyApp {
                 );
             });
         });
+    }
+
+    /** Draws info button for displaying information about... . */
+    fn draw_info_button(ui: &mut egui::Ui, info_window: &mut bool) {
+        let info_button = egui::Button::new(
+            egui::RichText::new("i")
+                .strong()
+                .size(14.0)
+                .color(egui::Color32::ORANGE),
+        )
+        .frame(false)
+        .min_size(egui::Vec2::new(20.0, 20.0))
+        .corner_radius(10.0)
+        .sense(egui::Sense::click());
+
+        let response = ui.add(info_button);
+
+        if response.hovered() {
+            ui.ctx().output_mut(|o| {
+                o.cursor_icon = egui::CursorIcon::PointingHand;
+            });
+        }
+
+        if response.clicked() {
+            *info_window = true;
+        }
     }
 
     /** Shows label if memory<=required_mb on game drive. */
@@ -1029,28 +1013,7 @@ impl MyApp {
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.push_id("texture_quality_combo", |ui| {
-                            let info_button = egui::Button::new(
-                                egui::RichText::new("i")
-                                    .strong()
-                                    .size(14.0)
-                                    .color(egui::Color32::ORANGE),
-                            )
-                            .frame(false)
-                            .min_size(egui::Vec2::new(20.0, 20.0))
-                            .corner_radius(10.0)
-                            .sense(egui::Sense::click());
-
-                            let response = ui.add(info_button);
-
-                            if response.hovered() {
-                                ui.ctx().output_mut(|o| {
-                                    o.cursor_icon = egui::CursorIcon::PointingHand;
-                                });
-                            }
-
-                            if response.clicked() {
-                                self.show_texture_quality_info = true;
-                            }
+                            Self::draw_info_button(ui, &mut self.show_texture_quality_info);
 
                             egui::ComboBox::from_label("")
                                 .selected_text(self.texture_quality.as_str())
@@ -1081,28 +1044,7 @@ impl MyApp {
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.push_id("foliage_quality_combo", |ui| {
-                            let info_button = egui::Button::new(
-                                egui::RichText::new("i")
-                                    .strong()
-                                    .size(14.0)
-                                    .color(egui::Color32::ORANGE),
-                            )
-                            .frame(false)
-                            .min_size(egui::Vec2::new(20.0, 20.0))
-                            .corner_radius(10.0)
-                            .sense(egui::Sense::click());
-
-                            let response = ui.add(info_button);
-
-                            if response.hovered() {
-                                ui.ctx().output_mut(|o| {
-                                    o.cursor_icon = egui::CursorIcon::PointingHand;
-                                });
-                            }
-
-                            if response.clicked() {
-                                self.show_foliage_quality_info = true;
-                            }
+                            Self::draw_info_button(ui, &mut self.show_foliage_quality_info);
 
                             egui::ComboBox::from_label("")
                                 .selected_text(self.foliage_quality.as_str())
@@ -1152,28 +1094,7 @@ impl MyApp {
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.push_id("shadow_quality_combo", |ui| {
-                            let info_button = egui::Button::new(
-                                egui::RichText::new("i")
-                                    .strong()
-                                    .size(14.0)
-                                    .color(egui::Color32::ORANGE),
-                            )
-                            .frame(false)
-                            .min_size(egui::Vec2::new(20.0, 20.0))
-                            .corner_radius(10.0)
-                            .sense(egui::Sense::click());
-
-                            let response = ui.add(info_button);
-
-                            if response.hovered() {
-                                ui.ctx().output_mut(|o| {
-                                    o.cursor_icon = egui::CursorIcon::PointingHand;
-                                });
-                            }
-
-                            if response.clicked() {
-                                self.show_shadow_quality_info = true;
-                            }
+                            Self::draw_info_button(ui, &mut self.show_shadow_quality_info);
 
                             egui::ComboBox::from_label("")
                                 .selected_text(self.shadow_quality.as_str())
@@ -1240,28 +1161,7 @@ impl MyApp {
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.push_id("additional_shadows_combo", |ui| {
-                            let info_button = egui::Button::new(
-                                egui::RichText::new("i")
-                                    .strong()
-                                    .size(14.0)
-                                    .color(egui::Color32::ORANGE),
-                            )
-                            .frame(false)
-                            .min_size(egui::Vec2::new(20.0, 20.0))
-                            .corner_radius(10.0)
-                            .sense(egui::Sense::click());
-
-                            let response = ui.add(info_button);
-
-                            if response.hovered() {
-                                ui.ctx().output_mut(|o| {
-                                    o.cursor_icon = egui::CursorIcon::PointingHand;
-                                });
-                            }
-
-                            if response.clicked() {
-                                self.show_additional_shadows_info = true;
-                            }
+                            Self::draw_info_button(ui, &mut self.show_additional_shadows_info);
 
                             egui::ComboBox::from_label("")
                                 .selected_text(self.additional_shadows.as_str())
@@ -1292,28 +1192,7 @@ impl MyApp {
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.push_id("framerate_limit_combo", |ui| {
-                            let info_button = egui::Button::new(
-                                egui::RichText::new("i")
-                                    .strong()
-                                    .size(14.0)
-                                    .color(egui::Color32::ORANGE),
-                            )
-                            .frame(false)
-                            .min_size(egui::Vec2::new(20.0, 20.0))
-                            .corner_radius(10.0)
-                            .sense(egui::Sense::click());
-
-                            let response = ui.add(info_button);
-
-                            if response.hovered() {
-                                ui.ctx().output_mut(|o| {
-                                    o.cursor_icon = egui::CursorIcon::PointingHand;
-                                });
-                            }
-
-                            if response.clicked() {
-                                self.show_max_fps_info = true;
-                            }
+                            Self::draw_info_button(ui, &mut self.show_max_fps_info);
 
                             egui::ComboBox::from_label("")
                                 .selected_text(self.max_fps_preset.as_str())
@@ -1602,7 +1481,7 @@ impl MyApp {
 
                 if ui.button("Clear screenshots").clicked() {
                     match utils::clear_screenshots() {
-                        Ok(_) => self.status = Status::info("Successfully cleared successfully."),
+                        Ok(_) => self.status = Status::info("Successfully cleared screenshots."),
                         Err(e) => {
                             self.status =
                                 Status::error(format!("Failed to clear screenshots: {}", e))
