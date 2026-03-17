@@ -502,6 +502,25 @@ impl MyApp {
         }
     }
 
+    /** Draws simple popup for display information window. */
+    fn draw_simple_popup(
+        ctx: &egui::Context,
+        title: impl Into<String>,
+        open_flag: &mut bool,
+        content: impl FnOnce(&mut egui::Ui),
+    ) {
+        egui::Window::new(title.into())
+            .open(open_flag)
+            .resizable(false)
+            .collapsible(false)
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .show(ctx, |ui| {
+                ui.vertical_centered(|ui| {
+                    content(ui);
+                });
+            });
+    }
+
     /** Shows label if memory<=required_mb on game drive. */
     fn show_label_on_limited_memory(&self, ui: &mut egui::Ui) {
         if let Some(free_mb) = utils::get_free_space_mb(&self.config.game_path) {
@@ -1525,272 +1544,182 @@ impl MyApp {
         });
     }
 
-    /** Draws about window when it is needed. */
-    fn handle_info_windows(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
-        self.handle_about_window(ui, ctx);
-        self.handle_video_readonly_about(ui, ctx);
-        self.handle_texture_quality_about(ui, ctx);
-        self.handle_shadow_quality_about(ui, ctx);
-        self.handle_foliage_quality_about(ui, ctx);
-        self.handle_max_fps_about(ui, ctx);
-        self.handle_fov_about(ui, ctx);
-        self.handle_gamma_about(ui, ctx);
-        self.handle_view_distance_about(ui, ctx);
-        self.handle_vsync_about(ui, ctx);
-        self.handle_display_mode_about(ui, ctx);
-    }
+    /** Draws about windows when it is needed. */
+    fn handle_info_windows(&mut self, ctx: &egui::Context) {
+        Self::draw_simple_popup(
+            ctx,
+            "About Dying Light Tweaks",
+            &mut self.show_about,
+            |ui| {
+                ui.heading(PROGRAM_NAME);
+                ui.label("Version 0.1.0");
+                ui.add_space(12.0);
+                ui.label(egui::RichText::new("Made by caffidev").strong());
+                ui.label(format!("A simple {} Manager", PROGRAM_NAME));
+                ui.add_space(8.0);
+                ui.hyperlink_to("GitHub", "https://github.com/shwwwa/dltweaks");
+                ui.add_space(12.0);
+            },
+        );
 
-    /** Draws about window when it is needed. */
-    fn handle_about_window(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
-        egui::Window::new("About Dying Light Tweaks")
-            .open(&mut self.show_about)
-            .resizable(false)
-            .collapsible(false)
-            .default_pos(egui::pos2(
-                ui.available_width() / 2.,
-                ui.available_height() / 2.,
-            ))
-            .show(ctx, |ui| {
-                ui.vertical_centered(|ui| {
-                    ui.heading(PROGRAM_NAME);
-                    ui.label("Version 0.1.0");
-                    ui.add_space(12.0);
-                    ui.label(egui::RichText::new("Made by caffidev").strong());
-                    ui.label(format!("A simple {} Manager", PROGRAM_NAME));
-                    ui.add_space(8.0);
-                    ui.hyperlink_to("GitHub", "https://github.com/shwwwa/dltweaks");
-                    ui.add_space(12.0);
-                });
-            });
-    }
+        Self::draw_simple_popup(
+            ctx,
+            "Readonly Information",
+            &mut self.show_video_readonly_info,
+            |ui| {
+                ui.label(
+                    "When enabled, video.scr becomes read-only.\n\
+                     This prevents you from overriding your own settings (even with tweaks).\n\
+                     It should disable overriding settings in-game, but Dying Light ignores flag and still overrides so be careful.\n\
+                     Changes take effect immediately."
+                );
+            },
+        );
 
-    /** Draws about Readonly window when it is needed. */
-    fn handle_video_readonly_about(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
-        egui::Window::new("Readonly Information")
-            .open(&mut self.show_video_readonly_info)
-            .resizable(false)
-            .collapsible(false)
-            .default_pos(egui::pos2(ui.available_width() / 2., ui.available_height() / 2.))
-            .show(ctx, |ui| {
-                ui.vertical_centered(|ui| {
-                    ui.label(
-                        "When enabled, video.scr becomes read-only.\n\
-                         This prevents you from overriding your own settings (even with tweaks).\n\
-                         It should disable overriding settings in-game, but Dying Light ignores flag and still overrides so be careful.\n\
-                         Changes take effect immediately."
-                    );
-                });
-            });
-    }
-
-    /** Draws about Texture Quality window when it is needed. */
-    fn handle_texture_quality_about(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
-        egui::Window::new("Texture Quality Information")
-            .open(&mut self.show_texture_quality_info)
-            .resizable(false)
-            .collapsible(false)
-            .default_pos(egui::pos2(
-                ui.available_width() / 2.,
-                ui.available_height() / 2.,
-            ))
-            .show(ctx, |ui| {
-                ui.vertical_centered(|ui| {
-                    ui.label(
-                        "Set texture quality to highest you VRAM can handle.\n\
+        Self::draw_simple_popup(
+            ctx,
+            "Texture Quality Information",
+            &mut self.show_texture_quality_info,
+            |ui| {
+                ui.label(
+                    "Set texture quality to highest you VRAM can handle.\n\
                          Causes small FPS boost while in VRAM bounds.",
-                    );
-                });
-            });
-    }
+                );
+            },
+        );
 
-    /** Draws about Shadow Quality window when it is needed. */
-    fn handle_shadow_quality_about(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
-        egui::Window::new("Shadow Quality Information")
-            .open(&mut self.show_shadow_quality_info)
-            .resizable(false)
-            .collapsible(false)
-            .default_pos(egui::pos2(
-                ui.available_width() / 2.,
-                ui.available_height() / 2.,
-            ))
-            .show(ctx, |ui| {
-                ui.vertical_centered(|ui| {
-                    ui.label(
-                        "Changes shadow map size => shadow resolution in-game.\n\
-                         Gives substantial performance boost on very high -> high change.\n\
-                         Gives small performance boost on high -> medium change.\n\
-                         Can cause flickering while <= low settings.\n\
-                         Default range: 1.00 to 2.40.\n",
-                    );
+        Self::draw_simple_popup(
+            ctx,
+            "Shadow Quality Information",
+            &mut self.show_shadow_quality_info,
+            |ui| {
+                ui.label(
+                    "Changes shadow map size => shadow resolution in-game.\n\
+                     Gives substantial performance boost on very high -> high change.\n\
+                     Gives small performance boost on high -> medium change.\n\
+                     Can cause flickering while <= low settings.\n\
+                     Default range: 1.00 to 2.40.\n",
+                );
 
-                    ui.hyperlink_to(
-                        "Very High -> High difference",
-                        "https://imgsli.com/MTQ1NTUw",
-                    );
+                ui.hyperlink_to(
+                    "Very High -> High difference",
+                    "https://imgsli.com/MTQ1NTUw",
+                );
 
-                    ui.hyperlink_to(
-                        "High -> Medium difference",
-                        "https://imgsli.com/MTQ1NTUw/3/4",
-                    );
-                });
-            });
-    }
+                ui.hyperlink_to(
+                    "High -> Medium difference",
+                    "https://imgsli.com/MTQ1NTUw/3/4",
+                );
+            },
+        );
 
-    /** Draws about Foliage Quality window when it is needed. */
-    fn handle_foliage_quality_about(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
-        egui::Window::new("Foliage Quality Information")
-            .open(&mut self.show_foliage_quality_info)
-            .resizable(false)
-            .collapsible(false)
-            .default_pos(egui::pos2(
-                ui.available_width() / 2.,
-                ui.available_height() / 2.,
-            ))
-            .show(ctx, |ui| {
-                ui.vertical_centered(|ui| {
-                    ui.label(
-                        "Controls grass density and its draw distance.\n\
-                         Best to use with Low (2) settings, grass is poorly optimized in this game.\n\
-                         Any integer past 2 works, but does not have any noticeable effect.",
-                    );
+        Self::draw_simple_popup(
+            ctx,
+            "Foliage Quality Information",
+            &mut self.show_foliage_quality_info,
+            |ui| {
+                ui.label(
+                    "Controls grass density and its draw distance.\n\
+                     Best to use with Low (2) settings, grass is poorly optimized in this game.\n\
+                     Any integer past 2 works, but does not have any noticeable effect.",
+                );
 
-                    ui.hyperlink_to("High/medium comparison", "https://international.download.nvidia.com/geforce-com/international/comparisons/dying-light/dying-light-foliage-quality-comparison-2-high-vs-medium.html");
+                ui.hyperlink_to("High/medium comparison", "https://international.download.nvidia.com/geforce-com/international/comparisons/dying-light/dying-light-foliage-quality-comparison-2-high-vs-medium.html");
 
-                    ui.hyperlink_to("Medium/lowercase comparison", "https://international.download.nvidia.com/geforce-com/international/comparisons/dying-light/dying-light-foliage-quality-comparison-2-medium-vs-low.html");
+                ui.hyperlink_to("Medium/lowercase comparison", "https://international.download.nvidia.com/geforce-com/international/comparisons/dying-light/dying-light-foliage-quality-comparison-2-medium-vs-low.html");
 
-                    ui.hyperlink_to("Bad usage example", "https://international.download.nvidia.com/geforce-com/international/comparisons/dying-light/dying-light-foliage-quality-comparison-1-high-vs-low.html");
-                });
-            });
-    }
+                ui.hyperlink_to("Bad usage example", "https://international.download.nvidia.com/geforce-com/international/comparisons/dying-light/dying-light-foliage-quality-comparison-1-high-vs-low.html");
+            },
+        );
 
-    /** Draws about Gamma window when it is needed. */
-    fn handle_gamma_about(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
-        egui::Window::new("Gamma Information")
-            .open(&mut self.show_gamma_info)
-            .resizable(false)
-            .collapsible(false)
-            .default_pos(egui::pos2(
-                ui.available_width() / 2.,
-                ui.available_height() / 2.,
-            ))
-            .show(ctx, |ui| {
-                ui.vertical_centered(|ui| {
-                    ui.label(
-                        "Gamma controls overall brightness and contrast\n\
+        Self::draw_simple_popup(ctx, "Gamma Information", &mut self.show_gamma_info, |ui| {
+            ui.label(
+                "Gamma controls overall brightness and contrast\n\
                          Does not support extreme values.\n\
                          Default range: 0.5 to 1.5.",
-                    );
-                });
-            });
-    }
+            );
+        });
 
-    /** Draws about View Distance window when it is needed. */
-    fn handle_view_distance_about(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
-        egui::Window::new("View Distance Information")
-            .open(&mut self.show_view_distance_info)
-            .resizable(false)
-            .collapsible(false)
-            .default_pos(egui::pos2(
-                ui.available_width() / 2.,
-                ui.available_height() / 2.,
-            ))
-            .show(ctx, |ui| {
-                ui.vertical_centered(|ui| {
-                    ui.label(
+        Self::draw_simple_popup(
+            ctx,
+            "View Distance Information",
+            &mut self.show_view_distance_info,
+            |ui| {
+                ui.label(
                         "Corresponds to view distance in-game.\n\
                          Has significant influence on CPU performance on high values, set as high as you can with leftover performance:");
 
-                    ui.hyperlink_to("CPU cost", "https://imgsli.com/MTQ1NTUx/0/4");
+                ui.hyperlink_to("CPU cost", "https://imgsli.com/MTQ1NTUx/0/4");
 
-                    ui.label("Still looks good on lowest settings.\n\
-                              More info:");
+                ui.label(
+                    "Still looks good on lowest settings.\n\
+                              More info:",
+                );
 
-                    ui.hyperlink_to("Overview of view distances", "https://youtu.be/Iku4GQCYAz4?t=388");
-                    ui.hyperlink_to("Additional overview", "https://imgsli.com/MTQ1NTc5/1/3");
+                ui.hyperlink_to(
+                    "Overview of view distances",
+                    "https://youtu.be/Iku4GQCYAz4?t=388",
+                );
+                ui.hyperlink_to("Additional overview", "https://imgsli.com/MTQ1NTc5/1/3");
 
-                    ui.label("Default range: 1.00 to 2.40.\n\
-                              Recommended values: 1.00 to 2.00.");
+                ui.label(
+                    "Default range: 1.00 to 2.40.\n\
+                              Recommended values: 1.00 to 2.00.",
+                );
+            },
+        );
 
-                });
-            });
-    }
+        Self::draw_simple_popup(
+            ctx,
+            "Extra FOV Information",
+            &mut self.show_extra_fov_info,
+            |ui| {
+                ui.label(
+                    "This setting adds extra field of view (FOV) beyond the game's default limits.\n\
+                     Values give vertical fov modifier but may cause visual distortion.\n\
+                     Default range: -10 to +20 (-58 corresponds to fov(0) ingame)."
+                );
+            },
+        );
 
-    /** Draws about FOV window when it is needed. */
-    fn handle_fov_about(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
-        egui::Window::new("Extra FOV Information")
-            .open(&mut self.show_extra_fov_info)
-            .resizable(false)
-            .collapsible(false)
-            .default_pos(egui::pos2(ui.available_width() / 2., ui.available_height() / 2.))
-            .show(ctx, |ui| {
-                ui.vertical_centered(|ui| {
-                    ui.label(
-                        "This setting adds extra field of view (FOV) beyond the game's default limits.\n\
-                         Values give vertical fov modifier but may cause visual distortion.\n\
-                         Default range: -10 to +20 (-58 corresponds to fov(0) ingame)."
-                    );
-                });
-            });
-    }
+        Self::draw_simple_popup(
+            ctx,
+            "Framerate Limiter Information",
+            &mut self.show_max_fps_info,
+            |ui| {
+                ui.label(
+                    "This setting changes framerate limiter in-game.\n\
+                     When in custom range, framerate limiter works, although shows 30 fps in settings as fallback."
+                );
+            },
+        );
 
-    /** Draws about MaxFps window when it is needed. */
-    fn handle_max_fps_about(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
-        egui::Window::new("Max Fps Information")
-            .open(&mut self.show_max_fps_info)
-            .resizable(false)
-            .collapsible(false)
-            .default_pos(egui::pos2(ui.available_width() / 2., ui.available_height() / 2.))
-            .show(ctx, |ui| {
-                ui.vertical_centered(|ui| {
-                    ui.label(
-                        "This setting changes framerate limiter in-game.\n\
-                         When in custom range, framerate limiter works, although shows 30 fps in settings as fallback."
-                    );
-                });
-            });
-    }
-
-    /** Draws about Vsync window when it is needed. */
-    fn handle_vsync_about(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
-        egui::Window::new("Vertical Synchronization Information")
-            .open(&mut self.show_vsync_info)
-            .resizable(false)
-            .collapsible(false)
-            .default_pos(egui::pos2(
-                ui.available_width() / 2.,
-                ui.available_height() / 2.,
-            ))
-            .show(ctx, |ui| {
-                ui.vertical_centered(|ui| {
-                    ui.label(
-                        "This setting toggles vertical synchronization in-game.\n\
+        Self::draw_simple_popup(
+            ctx,
+            "Vertical Synchronisation Information",
+            &mut self.show_vsync_info,
+            |ui| {
+                ui.label(
+                    "This setting toggles vertical synchronization in-game.\n\
                          Prevents screen tearing, can add slight input lag.\n\
                          Does not support skipping frames like on consoles.",
-                    );
-                });
-            });
-    }
+                );
+            },
+        );
 
-    /** Draws about Display Mode window when it is needed. */
-    fn handle_display_mode_about(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
-        egui::Window::new("Display Mode Information")
-            .open(&mut self.show_display_mode_info)
-            .resizable(false)
-            .collapsible(false)
-            .default_pos(egui::pos2(
-                ui.available_width() / 2.,
-                ui.available_height() / 2.,
-            ))
-            .show(ctx, |ui| {
-                ui.vertical_centered(|ui| {
-                    ui.label(
+        Self::draw_simple_popup(
+            ctx,
+            "Display Mode Information",
+            &mut self.show_display_mode_info,
+            |ui| {
+                ui.label(
                         "Fullscreen: turns off DWM, faster (not alt-tab friendly)\n\
                          Borderless Windowed: windowed fullscreen (alt-tab friendly, overlays work)\n\
                          Windowed: regular desktop windowed\n\
                          - Borderless overrides Fullscreen if both enabled in config",
                     );
-                });
-            });
+            },
+        );
     }
 }
 
@@ -1862,7 +1791,7 @@ impl eframe::App for MyApp {
 
             self.show_cleanup_ui(ui);
 
-            self.handle_info_windows(ui, ctx);
+            self.handle_info_windows(ctx);
 
             self.is_reloading_video = false;
         });
