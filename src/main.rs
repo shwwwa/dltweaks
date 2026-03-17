@@ -316,6 +316,7 @@ impl MyApp {
         self.cached_logs_count = l_count;
     }
 
+    /** Reloads video settings from video.scr file */
     fn reload_video_settings_from_file(&mut self) -> bool {
         self.is_reloading_video = true;
 
@@ -421,6 +422,100 @@ impl MyApp {
                 false
             }
         }
+    }
+
+    /** Draws combobox with enabled/disabled values. */
+    fn draw_enabled_disabled_combo(
+        ui: &mut egui::Ui,
+        label: impl Into<String>,
+        combo_id: impl Into<String>,
+        info_window: &mut bool,
+        value: &mut EnabledDisabled,
+    ) {
+        ui.horizontal(|ui| {
+            ui.label(label.into());
+
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.push_id(combo_id.into(), |ui| {
+                    let info_button = egui::Button::new(
+                        egui::RichText::new("i")
+                            .strong()
+                            .size(14.0)
+                            .color(egui::Color32::ORANGE),
+                    )
+                    .frame(false)
+                    .min_size(egui::Vec2::new(20.0, 20.0))
+                    .corner_radius(10.0)
+                    .sense(egui::Sense::click());
+
+                    let response = ui.add(info_button);
+
+                    if response.hovered() {
+                        ui.ctx().output_mut(|o| {
+                            o.cursor_icon = egui::CursorIcon::PointingHand;
+                        });
+                    }
+
+                    if response.clicked() {
+                        *info_window = true;
+                    }
+
+                    egui::ComboBox::from_label("")
+                        .selected_text(value.as_str())
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(value, EnabledDisabled::Enabled, "Enabled");
+                            ui.selectable_value(value, EnabledDisabled::Disabled, "Disabled");
+                        });
+                });
+            });
+        });
+    }
+
+    /** Draws slider with specified range and step. */
+    fn draw_slider(
+        ui: &mut egui::Ui,
+        label: impl Into<String>,
+        value: &mut f32,
+        range: std::ops::RangeInclusive<f32>,
+        step: f32,
+        info_window: &mut bool,
+    ) {
+        ui.horizontal(|ui| {
+            ui.label(label.into());
+
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                let info_button = egui::Button::new(
+                    egui::RichText::new("i")
+                        .strong()
+                        .size(14.0)
+                        .color(egui::Color32::ORANGE),
+                )
+                .frame(false)
+                .min_size(egui::Vec2::new(20.0, 20.0))
+                .corner_radius(10.0)
+                .sense(egui::Sense::click());
+
+                let response = ui.add(info_button);
+
+                if response.hovered() {
+                    ui.ctx().output_mut(|o| {
+                        o.cursor_icon = egui::CursorIcon::PointingHand;
+                    });
+                }
+
+                if response.clicked() {
+                    *info_window = true;
+                }
+
+                ui.add_sized(
+                    [ui.available_width() - 100.0, 24.0],
+                    egui::Slider::new(value, range)
+                        .step_by(step.into())
+                        .trailing_fill(true)
+                        .handle_shape(egui::style::HandleShape::Rect { aspect_ratio: 0.6 }),
+                );
+            });
+        });
     }
 
     /** Shows label if memory<=required_mb on game drive. */
@@ -571,52 +666,6 @@ impl MyApp {
         };
 
         ui.label(config_text);
-    }
-
-    fn draw_enabled_disabled_combo(
-        ui: &mut egui::Ui,
-        label: impl Into<String>,
-        combo_id: impl Into<String>,
-        info_window: &mut bool,
-        value: &mut EnabledDisabled,
-    ) {
-        ui.horizontal(|ui| {
-            ui.label(label.into());
-
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                ui.push_id(combo_id.into(), |ui| {
-                    let info_button = egui::Button::new(
-                        egui::RichText::new("i")
-                            .strong()
-                            .size(14.0)
-                            .color(egui::Color32::ORANGE),
-                    )
-                    .frame(false)
-                    .min_size(egui::Vec2::new(20.0, 20.0))
-                    .corner_radius(10.0)
-                    .sense(egui::Sense::click());
-
-                    let response = ui.add(info_button);
-
-                    if response.hovered() {
-                        ui.ctx().output_mut(|o| {
-                            o.cursor_icon = egui::CursorIcon::PointingHand;
-                        });
-                    }
-
-                    if response.clicked() {
-                        *info_window = true;
-                    }
-
-                    egui::ComboBox::from_label("")
-                        .selected_text(value.as_str())
-                        .show_ui(ui, |ui| {
-                            ui.selectable_value(value, EnabledDisabled::Enabled, "Enabled");
-                            ui.selectable_value(value, EnabledDisabled::Disabled, "Disabled");
-                        });
-                });
-            });
-        });
     }
 
     /** Shows launch UI. */
@@ -945,127 +994,34 @@ impl MyApp {
                 });
 
                 /* Gamma */
-                ui.horizontal(|ui| {
-                    ui.label("Gamma:");
-
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let info_button = egui::Button::new(
-                            egui::RichText::new("i")
-                                .strong()
-                                .size(14.0)
-                                .color(egui::Color32::ORANGE),
-                        )
-                        .frame(false)
-                        .min_size(egui::Vec2::new(20.0, 20.0))
-                        .corner_radius(10.0)
-                        .sense(egui::Sense::click());
-
-                        let response = ui.add(info_button);
-
-                        if response.hovered() {
-                            ui.ctx().output_mut(|o| {
-                                o.cursor_icon = egui::CursorIcon::PointingHand;
-                            });
-                        }
-
-                        if response.clicked() {
-                            self.show_gamma_info = true;
-                        }
-
-                        ui.add_sized(
-                            [ui.available_width() - 100.0, 24.0],
-                            egui::Slider::new(
-                                &mut self.gamma,
-                                self.gamma_slider_min..=self.gamma_slider_max,
-                            )
-                            .step_by(0.01)
-                            .trailing_fill(true)
-                            .handle_shape(egui::style::HandleShape::Rect { aspect_ratio: 0.6 }),
-                        );
-                    });
-                });
+                Self::draw_slider(
+                    ui,
+                    "Gamma:",
+                    &mut self.gamma,
+                    self.gamma_slider_min..=self.gamma_slider_max,
+                    0.01,
+                    &mut self.show_gamma_info,
+                );
 
                 /* View Distance */
-                ui.horizontal(|ui| {
-                    ui.label("View Distance:");
-
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let info_button = egui::Button::new(
-                            egui::RichText::new("i")
-                                .strong()
-                                .size(14.0)
-                                .color(egui::Color32::ORANGE),
-                        )
-                        .frame(false)
-                        .min_size(egui::Vec2::new(20.0, 20.0))
-                        .corner_radius(10.0)
-                        .sense(egui::Sense::click());
-
-                        let response = ui.add(info_button);
-
-                        if response.hovered() {
-                            ui.ctx().output_mut(|o| {
-                                o.cursor_icon = egui::CursorIcon::PointingHand;
-                            });
-                        }
-
-                        if response.clicked() {
-                            self.show_view_distance_info = true;
-                        }
-
-                        ui.add_sized(
-                            [ui.available_width() - 100.0, 24.0],
-                            egui::Slider::new(
-                                &mut self.view_distance,
-                                self.view_distance_slider_min..=self.view_distance_slider_max,
-                            )
-                            .step_by(0.05)
-                            .trailing_fill(true)
-                            .handle_shape(egui::style::HandleShape::Rect { aspect_ratio: 0.6 }),
-                        );
-                    });
-                });
+                Self::draw_slider(
+                    ui,
+                    "View Distance:",
+                    &mut self.view_distance,
+                    self.view_distance_slider_min..=self.view_distance_slider_max,
+                    0.05,
+                    &mut self.show_view_distance_info,
+                );
 
                 /* Extra game FOV */
-                ui.horizontal(|ui| {
-                    ui.label("Extra FOV:");
-
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let info_button = egui::Button::new(
-                            egui::RichText::new("i")
-                                .strong()
-                                .size(14.0)
-                                .color(egui::Color32::ORANGE),
-                        )
-                        .frame(false)
-                        .min_size(egui::Vec2::new(20.0, 20.0))
-                        .corner_radius(10.0)
-                        .sense(egui::Sense::click());
-
-                        let response = ui.add(info_button);
-
-                        if response.hovered() {
-                            ui.ctx().output_mut(|o| {
-                                o.cursor_icon = egui::CursorIcon::PointingHand;
-                            });
-                        }
-
-                        if response.clicked() {
-                            self.show_extra_fov_info = true;
-                        }
-
-                        ui.add_sized(
-                            [ui.available_width() - 100.0, 24.0],
-                            egui::Slider::new(
-                                &mut self.extra_fov,
-                                self.extra_fov_slider_min..=self.extra_fov_slider_max,
-                            )
-                            .step_by(0.1)
-                            .trailing_fill(true)
-                            .handle_shape(egui::style::HandleShape::Rect { aspect_ratio: 0.6 }),
-                        );
-                    });
-                });
+                Self::draw_slider(
+                    ui,
+                    "Extra FOV:",
+                    &mut self.extra_fov,
+                    self.extra_fov_slider_min..=self.extra_fov_slider_max,
+                    0.1,
+                    &mut self.show_extra_fov_info,
+                );
 
                 /* Texture Quality */
                 ui.horizontal(|ui| {
@@ -1513,7 +1469,28 @@ impl MyApp {
                     if ui
                         .button(egui::RichText::new("Apply Changes").size(16.0))
                         .clicked()
-                    {}
+                    {
+                        if let Some(path) = video::get_video_scr_path() {
+                            if !path.is_file() {
+                                self.status =
+                                    Status::error("Cannot apply to file that does not exist.");
+                                return;
+                            }
+
+                            if video::is_video_scr_readonly() {
+                                self.status = Status::warning(
+                                    "In order to apply changes, make file writeable.",
+                                );
+                                return;
+                            }
+
+                            let backup_path = path.with_extension("scr.bak");
+                            if let Err(e) = std::fs::copy(&path, &backup_path) {
+                                self.status = Status::error(format!("Backup failed: {}", e));
+                                return;
+                            }
+                        }
+                    }
 
                     if ui
                         .button(egui::RichText::new("Discard").size(16.0))
