@@ -113,7 +113,7 @@ pub fn parse_video_scr() -> io::Result<VideoSettings> {
                 "OculusEnabled" => settings.oculus_enabled = true,
                 "VSync" => {
                     if let Some(v) = parse_single_i32(value_part) {
-                        settings.anti_aliasing = Some(v);
+                        settings.vsync = Some(v);
                     }
                 }
                 "TextureQuality" => {
