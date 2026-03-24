@@ -17,7 +17,12 @@ use crate::video_types::{
 use eframe::egui;
 use rfd::FileDialog;
 
-const PROGRAM_NAME: &str = "Dying Light Tweaks";
+const PROGRAM_NAME: &str = if cfg!(debug_assertions) {
+    "Dying Light Tweaks (DEBUG BUILD)"
+} else {
+    "Dying Light Tweaks"
+};
+
 const EXECUTABLE_NAME: &str = "DyingLightGame.exe";
 const NOLOGOS_ARG: &str = "-nologos";
 const HIGHPRIORITY_ARG: &str = "-high";
@@ -97,6 +102,8 @@ fn main() -> eframe::Result {
         show_nvidia_hbao_info: false,
         show_nvidia_dof_info: false,
         show_nvidia_pcss_info: false,
+        /* Debug information */
+        last_window_size: Option<egui::Vec2>,
     };
 
     if !app.config.game_path.is_empty() {
@@ -1716,7 +1723,7 @@ impl eframe::App for MyApp {
                     }
 
                     if ui
-                        .checkbox(&mut self.config.dark_mode, "Dark mode (WiP)")
+                        .checkbox(&mut self.config.dark_mode, "Dark mode")
                         .changed()
                     {
                         if let Err(e) = config::save_config(&self.config) {
