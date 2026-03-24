@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 use crate::video_types::{AdditionalShadows, TextureQuality};
 
-pub const VIDEO_SCR_COMMENTS: [&str; 20] = [
+pub const VIDEO_SCR_COMMENTS: [&str; 23] = [
     "!Resolution(i,i)",
     "!WindowOffset(i,i)",
     "!Monitor(i)                    // -1 primary monitor",
