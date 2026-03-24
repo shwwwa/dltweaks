@@ -1472,9 +1472,9 @@ impl MyApp {
                         }
                     }
 
-                    let (mb, count) = utils::get_dumps_stats(&self.config.game_path);
-                    self.cached_dumps_mb = mb;
-                    self.cached_dumps_count = count;
+                    let (mb, count) = utils::get_screenshots_stats();
+                    self.cached_screenshots_mb = mb;
+                    self.cached_screenshots_count = count;
                 }
 
                 if ui.button("Clear logs").clicked() {
