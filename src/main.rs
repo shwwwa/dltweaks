@@ -222,34 +222,33 @@ struct MyApp {
 }
 
 /** Launches DL1 via steam://uri wrapper. */
-fn launch_steam(settings: &AppSettings, custom_args: &str, status: &mut Status) {
+fn launch_steam(
+    settings: &AppSettings,
+    custom_args: &str,
+    include_args: bool,
+    status: &mut Status,
+) {
     let mut steam_args = Vec::new();
 
-    if settings.skip_intro_videos {
-        steam_args.push(NOLOGOS_ARG);
-    }
-    if settings.high_priority {
-        steam_args.push(HIGHPRIORITY_ARG);
-    }
-    if settings.use_all_cores {
-        steam_args.push(USEALLCORES_ARG);
-    }
-    if !custom_args.is_empty() {
-        steam_args.push(custom_args);
+    if include_args {
+        if settings.skip_intro_videos {
+            steam_args.push(NOLOGOS_ARG);
+        }
+        if settings.high_priority {
+            steam_args.push(HIGHPRIORITY_ARG);
+        }
+        if settings.use_all_cores {
+            steam_args.push(USEALLCORES_ARG);
+        }
+        if !custom_args.is_empty() {
+            steam_args.push(custom_args);
+        }
     }
 
-    let uri = if steam_args.is_empty() && custom_args.is_empty() {
+    let uri = if steam_args.is_empty() {
         "steam://run/239140".to_string()
     } else {
-        // Combine checkbox args + custom args into one space-separated string
-        let mut all_args = steam_args.join(" ");
-        if !custom_args.is_empty() {
-            if !all_args.is_empty() {
-                all_args.push(' ');
-            }
-            all_args.push_str(custom_args);
-        }
-        format!("steam://run/239140//{}//", all_args)
+        format!("steam://run/239140//{}//", steam_args.join(" "))
     };
 
     match open::that(&uri) {
@@ -263,7 +262,13 @@ fn launch_steam(settings: &AppSettings, custom_args: &str, status: &mut Status) 
 }
 
 /** Launches DL1 via std::process. */
-fn launch_direct(game_path: &str, settings: &AppSettings, custom_args: &str, status: &mut Status) {
+fn launch_direct(
+    game_path: &str,
+    settings: &AppSettings,
+    custom_args: &str,
+    include_args: bool,
+    status: &mut Status,
+) {
     let exe_path = std::path::Path::new(game_path).join(EXECUTABLE_NAME);
 
     if !exe_path.exists() {
@@ -274,19 +279,20 @@ fn launch_direct(game_path: &str, settings: &AppSettings, custom_args: &str, sta
     let mut cmd = std::process::Command::new(&exe_path);
     cmd.current_dir(game_path);
 
-    if settings.skip_intro_videos {
-        cmd.arg(NOLOGOS_ARG);
-    }
-    if settings.high_priority {
-        cmd.arg(HIGHPRIORITY_ARG);
-    }
-    if settings.use_all_cores {
-        cmd.arg(USEALLCORES_ARG);
-    }
-
-    if !custom_args.is_empty() {
-        for arg in custom_args.split_whitespace() {
-            cmd.arg(arg);
+    if include_args {
+        if settings.skip_intro_videos {
+            cmd.arg(NOLOGOS_ARG);
+        }
+        if settings.high_priority {
+            cmd.arg(HIGHPRIORITY_ARG);
+        }
+        if settings.use_all_cores {
+            cmd.arg(USEALLCORES_ARG);
+        }
+        if !custom_args.is_empty() {
+            for arg in custom_args.split_whitespace() {
+                cmd.arg(arg);
+            }
         }
     }
 
@@ -424,6 +430,30 @@ impl MyApp {
         }
     }
 
+    fn launch_game(&mut self, include_args: bool) {
+        if self.config.game_path.is_empty() && !self.config.use_steam_launch {
+            self.status = Status::error("You can't launch the game while game directory is not set (or use Steam launch fallback).");
+            return;
+        }
+
+        let custom_args = self.launch_args.trim();
+
+        if self.config.use_steam_launch {
+            launch_steam(&self.settings, custom_args, include_args, &mut self.status);
+        } else {
+            launch_direct(
+                &self.config.game_path,
+                &self.settings,
+                custom_args,
+                include_args,
+                &mut self.status,
+            );
+        }
+
+        self.cache_file_stats();
+        self.reload_video_settings_from_file();
+    }
+
     /** Draws combobox with enabled/disabled values. */
     fn draw_enabled_disabled_combo(
         ui: &mut egui::Ui,
@@ -550,47 +580,11 @@ impl MyApp {
     fn show_launch_buttons(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             if ui.button("Launch Game").clicked() {
-                if self.config.game_path.is_empty() && !self.config.use_steam_launch {
-                    Status::error("You can't launch the game while game directory is not set (or use Steam launch fallback).");
-                } else {
-                    let custom_args = self.launch_args.trim();
-
-                    if self.config.use_steam_launch {
-                        launch_steam(&self.settings, custom_args, &mut self.status);
-                    } else {
-                        launch_direct(
-                            &self.config.game_path,
-                            &self.settings,
-                            custom_args,
-                            &mut self.status,
-                        );
-                    }
-
-                    self.cache_file_stats();
-                    self.reload_video_settings_from_file();
-                }
+                self.launch_game(true);
             }
 
             if ui.button("Launch Game w/o args").clicked() {
-                if self.config.game_path.is_empty() && !self.config.use_steam_launch {
-                     Status::error("You can't launch the game while game directory is not set (or use Steam launch fallback).");
-                } else {
-                    let custom_args = self.launch_args.trim();
-
-                    if self.config.use_steam_launch {
-                        launch_steam(&self.settings, custom_args, &mut self.status);
-                    } else {
-                        launch_direct(
-                            &self.config.game_path,
-                            &self.settings,
-                            custom_args,
-                            &mut self.status,
-                        );
-                    }
-
-                    self.cache_file_stats();
-                    self.reload_video_settings_from_file();
-                }
+                self.launch_game(false);
             }
         });
     }
