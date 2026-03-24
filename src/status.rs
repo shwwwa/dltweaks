@@ -4,6 +4,7 @@ pub struct Status {
     pub color: egui::Color32,
 }
 
+#[must_use = "Status must be assigned/used (you forgot to write to status struct"]
 impl Status {
     pub fn new(text: impl Into<String>, color: egui::Color32) -> Self {
         Self {
