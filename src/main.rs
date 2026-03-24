@@ -32,8 +32,6 @@ fn main() -> eframe::Result {
     let mut app = MyApp {
         config: config::load_config(),
         status: Status::neutral("Ready"),
-        launch_args: "".to_string(),
-        settings: AppSettings::default(),
         /* Cached app stats */
         cached_dumps_mb: 0.0,
         cached_dumps_count: 0,
@@ -126,29 +124,10 @@ fn main() -> eframe::Result {
     eframe::run_native(PROGRAM_NAME, options, Box::new(|_cc| Ok(Box::new(app))))
 }
 
-struct AppSettings {
-    /* Game additional launch args. */
-    skip_intro_videos: bool,
-    high_priority: bool,
-    use_all_cores: bool,
-}
-
-impl Default for AppSettings {
-    fn default() -> Self {
-        AppSettings {
-            skip_intro_videos: true,
-            high_priority: true,
-            use_all_cores: true,
-        }
-    }
-}
-
 #[derive(Default)]
 struct MyApp {
     config: AppConfig,
     status: Status,
-    launch_args: String,
-    settings: AppSettings,
     /* Cached app stats */
     cached_dumps_mb: f64,
     cached_dumps_count: usize,
@@ -217,33 +196,13 @@ struct MyApp {
 }
 
 /** Launches DL1 via steam://uri wrapper. */
-fn launch_steam(
-    settings: &AppSettings,
-    custom_args: &str,
-    include_args: bool,
-    status: &mut Status,
-) {
-    let mut steam_args = Vec::new();
+fn launch_steam(custom_args: &str, include_args: bool, status: &mut Status) {
+    let custom_args = custom_args.trim();
 
-    if include_args {
-        if settings.skip_intro_videos {
-            steam_args.push(NOLOGOS_ARG);
-        }
-        if settings.high_priority {
-            steam_args.push(HIGHPRIORITY_ARG);
-        }
-        if settings.use_all_cores {
-            steam_args.push(USEALLCORES_ARG);
-        }
-        if !custom_args.is_empty() {
-            steam_args.push(custom_args);
-        }
-    }
-
-    let uri = if steam_args.is_empty() {
+    let uri = if !include_args || custom_args.is_empty() {
         "steam://run/239140".to_string()
     } else {
-        format!("steam://run/239140//{}//", steam_args.join(" "))
+        format!("steam://run/239140//{}//", custom_args)
     };
 
     match open::that(&uri) {
@@ -257,13 +216,7 @@ fn launch_steam(
 }
 
 /** Launches DL1 via std::process. */
-fn launch_direct(
-    game_path: &str,
-    settings: &AppSettings,
-    custom_args: &str,
-    include_args: bool,
-    status: &mut Status,
-) {
+fn launch_direct(game_path: &str, custom_args: &str, include_args: bool, status: &mut Status) {
     let exe_path = std::path::Path::new(game_path).join(EXECUTABLE_NAME);
 
     if !exe_path.exists() {
@@ -275,19 +228,8 @@ fn launch_direct(
     cmd.current_dir(game_path);
 
     if include_args {
-        if settings.skip_intro_videos {
-            cmd.arg(NOLOGOS_ARG);
-        }
-        if settings.high_priority {
-            cmd.arg(HIGHPRIORITY_ARG);
-        }
-        if settings.use_all_cores {
-            cmd.arg(USEALLCORES_ARG);
-        }
-        if !custom_args.is_empty() {
-            for arg in custom_args.split_whitespace() {
-                cmd.arg(arg);
-            }
+        for arg in custom_args.split_whitespace() {
+            cmd.arg(arg);
         }
     }
 
@@ -302,6 +244,30 @@ fn launch_direct(
 }
 
 impl MyApp {
+    fn has_launch_arg(&self, arg: &str) -> bool {
+        self.config.launch_args.split_whitespace().any(|a| a == arg)
+    }
+
+    fn set_launch_arg(&mut self, arg: &str, enabled: bool) {
+        let mut args: Vec<String> = self
+            .config
+            .launch_args
+            .split_whitespace()
+            .filter(|a| *a != arg)
+            .map(str::to_string)
+            .collect();
+
+        if enabled {
+            args.push(arg.to_string());
+        }
+
+        self.config.launch_args = args.join(" ");
+
+        if let Err(e) = config::save_config(&self.config) {
+            self.status = Status::error(format!("Failed to save config: {}", e));
+        }
+    }
+
     /** Recalculates and caches file stats for cleanup. */
     fn cache_file_stats(&mut self) {
         let (d_mb, d_count) = utils::get_dumps_stats(&self.config.game_path);
@@ -431,14 +397,13 @@ impl MyApp {
             return;
         }
 
-        let custom_args = self.launch_args.trim();
+        let custom_args = self.config.launch_args.trim();
 
         if self.config.use_steam_launch {
-            launch_steam(&self.settings, custom_args, include_args, &mut self.status);
+            launch_steam(custom_args, include_args, &mut self.status);
         } else {
             launch_direct(
                 &self.config.game_path,
-                &self.settings,
                 custom_args,
                 include_args,
                 &mut self.status,
@@ -666,34 +631,43 @@ impl MyApp {
             self.show_launch_buttons(ui);
 
             ui.horizontal(|ui| {
+                let mut skip_intro_videos = self.has_launch_arg(NOLOGOS_ARG);
                 if ui
-                    .checkbox(&mut self.settings.skip_intro_videos, "Skip intro videos")
+                    .checkbox(&mut skip_intro_videos, "Skip intro videos")
                     .changed()
                 {
-                    let _ = config::save_config(&self.config);
+                    self.set_launch_arg(NOLOGOS_ARG, skip_intro_videos);
                 }
+                let mut high_priority = self.has_launch_arg(HIGHPRIORITY_ARG);
                 if ui
-                    .checkbox(&mut self.settings.high_priority, "High process priority")
+                    .checkbox(&mut high_priority, "High process priority")
                     .changed()
                 {
-                    let _ = config::save_config(&self.config);
+                    self.set_launch_arg(HIGHPRIORITY_ARG, high_priority);
                 }
+                let mut use_all_cores = self.has_launch_arg(USEALLCORES_ARG);
                 if ui
-                    .checkbox(&mut self.settings.use_all_cores, "Use all CPU cores")
+                    .checkbox(&mut use_all_cores, "Use all CPU cores")
                     .changed()
                 {
-                    let _ = config::save_config(&self.config);
+                    self.set_launch_arg(USEALLCORES_ARG, use_all_cores);
                 }
             });
 
             ui.horizontal(|ui| {
                 ui.label("Launch arguments:");
-                ui.add_sized(
+                let response = ui.add_sized(
                     [ui.available_width() - 120.0, 28.0],
-                    egui::TextEdit::singleline(&mut self.launch_args)
+                    egui::TextEdit::singleline(&mut self.config.launch_args)
                         .hint_text("Enter launch arguments")
                         .desired_width(f32::INFINITY),
                 );
+
+                if response.changed() {
+                    if let Err(e) = config::save_config(&self.config) {
+                        self.status = Status::error(format!("Failed to save config: {}", e));
+                    }
+                }
 
                 if ui
                     .add(
@@ -703,11 +677,13 @@ impl MyApp {
                     )
                     .clicked()
                 {
-                    self.settings.skip_intro_videos = false;
-                    self.settings.high_priority = false;
-                    self.settings.use_all_cores = false;
-                    self.launch_args.clear();
-                    self.status = Status::info("Launch arguments and options reset to defaults.");
+                    self.config.launch_args.clear();
+                    if let Err(e) = config::save_config(&self.config) {
+                        self.status = Status::error(format!("Failed to save config: {}", e));
+                    } else {
+                        self.status =
+                            Status::info("Launch arguments and options reset to defaults.");
+                    }
                 }
             });
         });

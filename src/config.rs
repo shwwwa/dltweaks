@@ -10,6 +10,7 @@ pub struct AppConfig {
     pub dark_mode: bool,
     pub game_path: String,
     pub use_steam_launch: bool,
+    pub launch_args: String,
 }
 
 pub const APP_NAME: &str = "dltweaks";
