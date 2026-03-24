@@ -30,7 +30,9 @@ const USEALLCORES_ARG: &str = "-useallavailablecores";
 
 fn main() -> eframe::Result {
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([640.0, 800.0]),
+        viewport: egui::ViewportBuilder::default()
+            .with_inner_size([640.0, 800.0])
+            .with_min_inner_size([640.0, 480.0]),
         ..Default::default()
     };
 
@@ -103,7 +105,7 @@ fn main() -> eframe::Result {
         show_nvidia_dof_info: false,
         show_nvidia_pcss_info: false,
         /* Debug information */
-        last_window_size: Option<egui::Vec2>,
+        last_window_size: None,
     };
 
     if !app.config.game_path.is_empty() {
@@ -200,6 +202,8 @@ struct MyApp {
     show_nvidia_hbao_info: bool,
     show_nvidia_dof_info: bool,
     show_nvidia_pcss_info: bool,
+    /* Debug information */
+    last_window_size: Option<egui::Vec2>,
 }
 
 /** Launches DL1 via steam://uri wrapper. */
@@ -1755,7 +1759,17 @@ impl eframe::App for MyApp {
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.set_min_width(600.);
+            if self.config.show_debug_info {
+                let current_size = ctx.screen_rect().size();
+
+                if self.last_window_size != Some(current_size) {
+                    println!(
+                        "[DEBUG] Window resized → {:.0} x {:.0} px",
+                        current_size.x, current_size.y
+                    );
+                    self.last_window_size = Some(current_size);
+                }
+            }
 
             self.show_game_install_ui(ui);
 
