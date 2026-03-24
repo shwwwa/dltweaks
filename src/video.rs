@@ -71,6 +71,18 @@ pub struct VideoSettings {
     pub nvidia_effects: Option<(i32, i32, i32)>,
 }
 
+pub fn serialize_video_scr(settings: &VideoSettings) -> String {
+    let mut lines = Vec::new();
+
+    for comment in VIDEO_SCR_COMMENTS {
+        lines.push(comment.to_string());
+    }
+
+    let mut out = lines.join("\n");
+    out.push('\n');
+    out
+}
+
 /** Parse video.scr file and return structured settings. */
 pub fn parse_video_scr() -> io::Result<VideoSettings> {
     let path = get_video_scr_path()
