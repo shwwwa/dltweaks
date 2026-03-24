@@ -618,10 +618,6 @@ impl MyApp {
 
         ui.add_space(6.0);
 
-        if !self.status.is_empty() {
-            ui.colored_label(self.status.color, &self.status.text);
-        }
-
         if !self.config.game_path.is_empty() {
             self.show_label_on_limited_memory(ui);
         }
@@ -1758,9 +1754,17 @@ impl eframe::App for MyApp {
             });
         });
 
+        egui::TopBottomPanel::top("top_section").show(ctx, |ui| {
+            self.show_game_install_ui(ui);
+
+            ui.add_space(4.0);
+
+            self.show_launch_ui(ui);
+        });
+
         egui::CentralPanel::default().show(ctx, |ui| {
             if self.config.show_debug_info {
-                let current_size = ctx.screen_rect().size();
+                let current_size = ctx.content_rect().size();
 
                 if self.last_window_size != Some(current_size) {
                     println!(
@@ -1771,24 +1775,28 @@ impl eframe::App for MyApp {
                 }
             }
 
-            self.show_game_install_ui(ui);
+            egui::ScrollArea::vertical()
+                .auto_shrink([false; 2])
+                .show(ui, |ui| {
+                    self.show_video_ui(ui);
 
-            ui.add_space(14.0);
+                    ui.add_space(8.0);
 
-            self.show_launch_ui(ui);
-
-            ui.add_space(8.0);
-
-            self.show_video_ui(ui);
-
-            ui.add_space(8.0);
-
-            self.show_cleanup_ui(ui);
+                    self.show_cleanup_ui(ui);
+                });
 
             self.handle_info_windows(ctx);
 
             self.is_reloading_video = false;
         });
+
+        if !self.status.is_empty() {
+            egui::TopBottomPanel::bottom("status_bar").show(ctx, |ui| {
+                ui.add_space(4.0);
+                ui.colored_label(self.status.color, &self.status.text);
+                ui.add_space(4.0);
+            });
+        }
     }
 
     /// Save on app close for extra safety
