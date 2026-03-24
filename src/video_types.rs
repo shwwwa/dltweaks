@@ -235,8 +235,8 @@ impl ResolutionPreset {
 
     pub fn as_str(&self) -> String {
         let (w, h) = self.as_tuple();
-        let wgcd = w / gcd(w, h);
-        let hgcd = h / gcd(w, h);
+        let mut wgcd = w / gcd(w, h);
+        let mut hgcd = h / gcd(w, h);
 
         if wgcd == 8 || hgcd == 5 {
             wgcd = 16;

@@ -471,6 +471,8 @@ impl MyApp {
                     egui::Slider::new(value, range)
                         .step_by(step.into())
                         .trailing_fill(true)
+                        .smart_aim(true)
+                        .clamp_to_range(false)
                         .handle_shape(egui::style::HandleShape::Rect { aspect_ratio: 0.6 }),
                 );
             });
