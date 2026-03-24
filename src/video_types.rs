@@ -235,7 +235,20 @@ impl ResolutionPreset {
 
     pub fn as_str(&self) -> String {
         let (w, h) = self.as_tuple();
-        format!("{}x{} [{}:{}]", w, h, w / gcd(w, h), h / gcd(w, h))
+        let wgcd = w / gcd(w, h);
+        let hgcd = h / gcd(w, h);
+
+        if wgcd == 8 || hgcd == 5 {
+            wgcd = 16;
+            hgcd = 10;
+        }
+
+        if wgcd == 683 || hgcd == 384 {
+            wgcd = 16;
+            hgcd = 9;
+        }
+
+        format!("{}x{} [{}:{}]", w, h, wgcd, hgcd)
     }
 }
 
