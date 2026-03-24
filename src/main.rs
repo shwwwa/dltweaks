@@ -15,6 +15,7 @@ use crate::video_types::{
     TextureQuality,
 };
 use eframe::egui;
+use egui::SliderClamping;
 use rfd::FileDialog;
 
 const PROGRAM_NAME: &str = if cfg!(debug_assertions) {
@@ -472,7 +473,7 @@ impl MyApp {
                         .step_by(step.into())
                         .trailing_fill(true)
                         .smart_aim(true)
-                        .clamp_to_range(false)
+                        .clamping(SliderClamping::Never)
                         .handle_shape(egui::style::HandleShape::Rect { aspect_ratio: 0.6 }),
                 );
             });
