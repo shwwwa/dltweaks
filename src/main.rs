@@ -621,15 +621,6 @@ impl MyApp {
         if !self.config.game_path.is_empty() {
             self.show_label_on_limited_memory(ui);
         }
-
-        let config_exists = utils::documents_config_exists();
-        let config_text = if config_exists {
-            egui::RichText::new("Documents configs: Found").color(egui::Color32::GREEN)
-        } else {
-            egui::RichText::new("Documents configs: Not Found").color(egui::Color32::RED)
-        };
-
-        ui.label(config_text);
     }
 
     /** Shows launch UI. */
@@ -1793,7 +1784,21 @@ impl eframe::App for MyApp {
         if !self.status.is_empty() {
             egui::TopBottomPanel::bottom("status_bar").show(ctx, |ui| {
                 ui.add_space(4.0);
-                ui.colored_label(self.status.color, &self.status.text);
+                ui.horizontal(|ui| {
+                    ui.colored_label(self.status.color, &self.status.text);
+
+                    let config_exists = utils::documents_config_exists();
+                    let config_text = if config_exists {
+                        egui::RichText::new("Documents configs: Found").color(egui::Color32::GREEN)
+                    } else {
+                        egui::RichText::new("Documents configs: Not Found")
+                            .color(egui::Color32::RED)
+                    };
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.label(config_text);
+                    });
+                });
+
                 ui.add_space(4.0);
             });
         }
