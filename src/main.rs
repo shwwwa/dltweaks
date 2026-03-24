@@ -127,9 +127,6 @@ fn main() -> eframe::Result {
 }
 
 struct AppSettings {
-    /* App settings located in menu bar. */
-    show_debug_info: bool,
-    dark_mode: bool,
     /* Game additional launch args. */
     skip_intro_videos: bool,
     high_priority: bool,
@@ -139,8 +136,6 @@ struct AppSettings {
 impl Default for AppSettings {
     fn default() -> Self {
         AppSettings {
-            show_debug_info: false,
-            dark_mode: true,
             skip_intro_videos: true,
             high_priority: true,
             use_all_cores: true,
@@ -1719,7 +1714,7 @@ impl MyApp {
 
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        if self.settings.dark_mode {
+        if self.config.dark_mode {
             ctx.set_visuals(egui::Visuals::dark());
         } else {
             ctx.set_visuals(egui::Visuals::light());
@@ -1736,17 +1731,21 @@ impl eframe::App for MyApp {
 
                 ui.menu_button("Settings", |ui| {
                     if ui
-                        .checkbox(&mut self.settings.show_debug_info, "Show debug information")
+                        .checkbox(&mut self.config.show_debug_info, "Show debug information")
                         .changed()
                     {
-                        let _ = config::save_config(&self.config);
+                        if let Err(e) = config::save_config(&self.config) {
+                            self.status = Status::error(format!("Failed to save config: {}", e));
+                        }
                     }
 
                     if ui
-                        .checkbox(&mut self.settings.dark_mode, "Dark mode (WiP)")
+                        .checkbox(&mut self.config.dark_mode, "Dark mode (WiP)")
                         .changed()
                     {
-                        let _ = config::save_config(&self.config);
+                        if let Err(e) = config::save_config(&self.config) {
+                            self.status = Status::error(format!("Failed to save config: {}", e));
+                        }
                     }
 
                     ui.separator();
@@ -1754,7 +1753,11 @@ impl eframe::App for MyApp {
                     if ui.button("Reset settings").clicked() {
                         self.config.show_debug_info = false;
                         self.config.dark_mode = true;
-                        let _ = config::save_config(&self.config);
+
+                        if let Err(e) = config::save_config(&self.config) {
+                            self.status = Status::error(format!("Failed to save config: {}", e));
+                        }
+
                         ui.close();
                     }
                 });
