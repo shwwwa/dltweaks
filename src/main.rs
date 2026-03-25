@@ -17,6 +17,7 @@ use crate::video_types::{
 use eframe::egui;
 use egui::SliderClamping;
 use rfd::FileDialog;
+use std::collections::HashMap;
 
 const PROGRAM_NAME: &str = if cfg!(debug_assertions) {
     "Dying Light Tweaks (DEBUG BUILD)"
@@ -50,6 +51,12 @@ fn main() -> eframe::Result {
         cached_video_settings: None,
         is_reloading_video: false,
         video_readonly: None,
+        /* Test screenshot textures */
+        image_textures: HashMap::new(),
+        /* Comparison slider state */
+        shadow_compare_ratio: 0.5,
+        foliage_compare_ratio: 0.5,
+        view_distance_compare_ratio: 0.5,
         /* Video settings of DL1 */
         resolution_preset: ResolutionPreset::R1920x1080,
         resolution_width_custom: 0,
@@ -148,6 +155,12 @@ struct MyApp {
     video_readonly: Option<bool>,
     is_reloading_video: bool,
     cached_video_settings: Option<VideoSettings>,
+    /* Test screenshot textures */
+    image_textures: HashMap<&'static str, egui::TextureHandle>,
+    /* Comparison slider state */
+    shadow_compare_ratio: f32,
+    foliage_compare_ratio: f32,
+    view_distance_compare_ratio: f32,
     /* Video settings of DL1 */
     resolution_preset: ResolutionPreset,
     resolution_width_custom: u32,
@@ -256,6 +269,143 @@ fn launch_direct(game_path: &str, custom_args: &str, include_args: bool, status:
 }
 
 impl MyApp {
+    fn get_or_create_test_texture(
+        &mut self,
+        ctx: &egui::Context,
+        key: &'static str,
+    ) -> &egui::TextureHandle {
+        self.image_textures.entry(key).or_insert_with(|| {
+            let size = [640, 360];
+            let mut image =
+                egui::ColorImage::new(size, vec![egui::Color32::BLACK; size[0] * size[1]]);
+
+            for y in 0..size[1] {
+                for x in 0..size[0] {
+                    let idx = y * size[0] + x;
+
+                    let color = match key {
+                        "shadow_low" => {
+                            let checker = ((x / 24) + (y / 24)) % 2 == 0;
+                            if checker {
+                                egui::Color32::from_rgb(60, 60, 70)
+                            } else {
+                                egui::Color32::from_rgb(95, 95, 110)
+                            }
+                        }
+                        "shadow_high" => {
+                            let checker = ((x / 12) + (y / 12)) % 2 == 0;
+                            if checker {
+                                egui::Color32::from_rgb(30, 30, 35)
+                            } else {
+                                egui::Color32::from_rgb(120, 120, 135)
+                            }
+                        }
+                        "foliage_low" => {
+                            let band = ((y / 18) % 2) as u8;
+                            egui::Color32::from_rgb(70, 110 + band * 20, 70)
+                        }
+                        "foliage_high" => {
+                            let band = ((x / 10 + y / 10) % 3) as u8;
+                            egui::Color32::from_rgb(40, 120 + band * 25, 40)
+                        }
+                        "view_distance_low" => {
+                            let fog = ((x as f32 / size[0] as f32) * 120.0) as u8;
+                            egui::Color32::from_rgb(90 + fog / 3, 120 + fog / 4, 150 + fog / 5)
+                        }
+                        "view_distance_high" => {
+                            let fog = ((x as f32 / size[0] as f32) * 70.0) as u8;
+                            egui::Color32::from_rgb(50 + fog / 4, 110 + fog / 5, 150 + fog / 6)
+                        }
+                        _ => egui::Color32::from_rgb(128, 0, 128),
+                    };
+
+                    image.pixels[idx] = color;
+                }
+            }
+
+            ctx.load_texture(key, image, egui::TextureOptions::LINEAR)
+        })
+    }
+
+    fn draw_test_image(
+        &mut self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        key: &'static str,
+        caption: &str,
+        max_width: f32,
+    ) {
+        let texture = self.get_or_create_test_texture(ctx, key);
+        let size = texture.size_vec2();
+        let scale = (max_width / size.x).min(1.0);
+        let desired = size * scale;
+
+        ui.label(egui::RichText::new(caption).strong());
+        ui.image((texture.id(), desired));
+    }
+
+    fn draw_test_comparison_slider(
+        ui: &mut egui::Ui,
+        ratio: &mut f32,
+        left: &egui::TextureHandle,
+        right: &egui::TextureHandle,
+        desired_width: f32,
+        desired_height: f32,
+    ) {
+        let desired_size = egui::vec2(desired_width, desired_height);
+        let (rect, response) = ui.allocate_exact_size(desired_size, egui::Sense::drag());
+
+        if response.dragged() || response.clicked() {
+            if let Some(pointer_pos) = response.interact_pointer_pos() {
+                *ratio = ((pointer_pos.x - rect.left()) / rect.width()).clamp(0.0, 1.0);
+            }
+        }
+
+        let painter = ui.painter();
+
+        painter.image(
+            left.id(),
+            rect,
+            egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+            egui::Color32::WHITE,
+        );
+
+        let split_x = rect.left() + rect.width() * *ratio;
+        let right_rect =
+            egui::Rect::from_min_max(egui::pos2(split_x, rect.top()), rect.right_bottom());
+
+        if right_rect.width() > 0.0 {
+            let uv_left = *ratio;
+            painter.image(
+                right.id(),
+                right_rect,
+                egui::Rect::from_min_max(egui::pos2(uv_left, 0.0), egui::pos2(1.0, 1.0)),
+                egui::Color32::WHITE,
+            );
+        }
+
+        painter.line_segment(
+            [
+                egui::pos2(split_x, rect.top()),
+                egui::pos2(split_x, rect.bottom()),
+            ],
+            egui::Stroke::new(2.0, egui::Color32::WHITE),
+        );
+
+        let knob_rect = egui::Rect::from_center_size(
+            egui::pos2(split_x, rect.center().y),
+            egui::vec2(10.0, 36.0),
+        );
+        painter.rect_filled(knob_rect, 4.0, egui::Color32::WHITE);
+
+        painter.rect_stroke(
+            rect,
+            4.0,
+            egui::Stroke::new(1.0, egui::Color32::GRAY),
+            egui::StrokeKind::Inside,
+        );
+    }
+
     fn has_launch_arg(&self, arg: &str) -> bool {
         self.config.launch_args.split_whitespace().any(|a| a == arg)
     }
@@ -405,7 +555,9 @@ impl MyApp {
 
     fn launch_game(&mut self, include_args: bool) {
         if self.config.game_path.is_empty() && !self.config.use_steam_launch {
-            self.status = Status::error("You can't launch the game while game directory is not set (or use Steam launch fallback).");
+            self.status = Status::error(
+                "You can't launch the game while game directory is not set (or use Steam launch fallback).",
+            );
             return;
         }
 
@@ -513,11 +665,22 @@ impl MyApp {
         open_flag: &mut bool,
         content: impl FnOnce(&mut egui::Ui),
     ) {
+        let default_size = egui::vec2(860.0, 620.0);
+        let min_size = egui::vec2(560.0, 420.0);
+
+        let screen_rect = ctx.content_rect();
+        let centered_pos = egui::pos2(
+            screen_rect.center().x - default_size.x * 0.5,
+            screen_rect.center().y - default_size.y * 0.5,
+        );
+
         egui::Window::new(title.into())
             .open(open_flag)
-            .resizable(false)
+            .resizable(true)
+            .default_size(default_size)
+            .min_size(min_size)
+            .default_pos(centered_pos)
             .collapsible(false)
-            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
             .show(ctx, |ui| {
                 ui.vertical_centered(|ui| {
                     content(ui);
@@ -533,13 +696,20 @@ impl MyApp {
 
             if free_mb < needed_mb + buffer_mb {
                 if free_mb < needed_mb {
-                    let msg = format!("You have {}MB free on game drive. Game may crash during launch/gameplay if you don't have at least {}MB more.", free_mb, needed_mb - free_mb);
+                    let msg = format!(
+                        "You have {}MB free on game drive. Game may crash during launch/gameplay if you don't have at least {}MB more.",
+                        free_mb,
+                        needed_mb - free_mb
+                    );
                     ui.colored_label(
                         egui::Color32::RED,
                         egui::RichText::new(msg).size(15.0).strong(),
                     );
                 } else {
-                    let msg = format!("Warning: you have {}MB free on game drive. Game will run fine, but you're getting closer to requirement of {}MB free space.", free_mb, needed_mb);
+                    let msg = format!(
+                        "Warning: you have {}MB free on game drive. Game will run fine, but you're getting closer to requirement of {}MB free space.",
+                        free_mb, needed_mb
+                    );
                     ui.colored_label(
                         egui::Color32::YELLOW,
                         egui::RichText::new(msg).size(15.0).strong(),
@@ -1457,7 +1627,7 @@ impl MyApp {
             &mut self.show_about,
             |ui| {
                 ui.heading(PROGRAM_NAME);
-                ui.label("Version 0.1.0");
+                ui.label("Version 0.3.0a");
                 ui.add_space(12.0);
                 ui.label(egui::RichText::new("Made by caffidev").strong());
                 ui.label(format!("A simple {} Manager", PROGRAM_NAME));
@@ -1488,35 +1658,54 @@ impl MyApp {
             |ui| {
                 ui.label(
                     "Set texture quality to highest you VRAM can handle.\n\
-                         Causes small FPS boost while in VRAM bounds.",
+                     Causes small FPS boost while in VRAM bounds.",
                 );
             },
         );
 
-        Self::draw_simple_popup(
-            ctx,
-            "Shadow Quality Information",
-            &mut self.show_shadow_quality_info,
-            |ui| {
-                ui.label(
-                    "Changes shadow map size => shadow resolution in-game.\n\
+        let shadow_low_tex = self.get_or_create_test_texture(ctx, "shadow_low").clone();
+        let shadow_high_tex = self.get_or_create_test_texture(ctx, "shadow_high").clone();
+
+        let mut shadow_open = self.show_shadow_quality_info;
+        let mut shadow_ratio = self.shadow_compare_ratio;
+
+        Self::draw_simple_popup(ctx, "Shadow Quality Information", &mut shadow_open, |ui| {
+            ui.label(
+                "Changes shadow map size => shadow resolution in-game.\n\
                      Gives substantial performance boost on very high -> high change.\n\
                      Gives small performance boost on high -> medium change.\n\
                      Can cause flickering while <= low settings.\n\
                      Default range: 1.00 to 2.40.\n",
-                );
+            );
 
-                ui.hyperlink_to(
-                    "Very High -> High difference",
-                    "https://imgsli.com/MTQ1NTUw",
-                );
+            ui.add_space(8.0);
+            ui.label(egui::RichText::new("Test comparison: Low vs High").strong());
 
-                ui.hyperlink_to(
-                    "High -> Medium difference",
-                    "https://imgsli.com/MTQ1NTUw/3/4",
-                );
-            },
-        );
+            let desired_width = ui.available_width().max(360.0);
+            let desired_height = (desired_width * 9.0 / 16.0).clamp(240.0, 720.0);
+
+            Self::draw_test_comparison_slider(
+                ui,
+                &mut shadow_ratio,
+                &shadow_low_tex,
+                &shadow_high_tex,
+                desired_width,
+                desired_height,
+            );
+
+            ui.hyperlink_to(
+                "Very High -> High difference",
+                "https://imgsli.com/MTQ1NTUw",
+            );
+
+            ui.hyperlink_to(
+                "High -> Medium difference",
+                "https://imgsli.com/MTQ1NTUw/3/4",
+            );
+        });
+
+        self.show_shadow_quality_info = shadow_open;
+        self.shadow_compare_ratio = shadow_ratio;
 
         Self::draw_simple_popup(
             ctx,
@@ -1540,8 +1729,8 @@ impl MyApp {
         Self::draw_simple_popup(ctx, "Gamma Information", &mut self.show_gamma_info, |ui| {
             ui.label(
                 "Gamma controls overall brightness and contrast\n\
-                         Does not support extreme values.\n\
-                         Default range: 0.5 to 1.5.",
+                 Does not support extreme values.\n\
+                 Default range: 0.5 to 1.5.",
             );
         });
 
@@ -1551,14 +1740,14 @@ impl MyApp {
             &mut self.show_view_distance_info,
             |ui| {
                 ui.label(
-                        "Corresponds to view distance in-game.\n\
-                         Has significant influence on CPU performance on high values, set as high as you can with leftover performance:");
+                    "Corresponds to view distance in-game.\n\
+                     Has significant influence on CPU performance on high values, set as high as you can with leftover performance:");
 
                 ui.hyperlink_to("CPU cost", "https://imgsli.com/MTQ1NTUx/0/4");
 
                 ui.label(
                     "Still looks good on lowest settings.\n\
-                              More info:",
+                     More info:",
                 );
 
                 ui.hyperlink_to(
@@ -1569,7 +1758,7 @@ impl MyApp {
 
                 ui.label(
                     "Default range: 1.00 to 2.40.\n\
-                              Recommended values: 1.00 to 2.00.",
+                     Recommended values: 1.00 to 2.00.",
                 );
             },
         );
@@ -1606,8 +1795,8 @@ impl MyApp {
             |ui| {
                 ui.label(
                     "This setting toggles vertical synchronization in-game.\n\
-                         Prevents screen tearing, can add slight input lag.\n\
-                         Does not support skipping frames like on consoles.",
+                     Prevents screen tearing, can add slight input lag.\n\
+                     Does not support skipping frames like on consoles.",
                 );
             },
         );
@@ -1618,11 +1807,11 @@ impl MyApp {
             &mut self.show_display_mode_info,
             |ui| {
                 ui.label(
-                        "Fullscreen: turns off DWM, faster (not alt-tab friendly)\n\
-                         Borderless Windowed: windowed fullscreen (alt-tab friendly, overlays work)\n\
-                         Windowed: regular desktop windowed\n\
-                         - Borderless overrides Fullscreen if both enabled in config",
-                    );
+                    "Fullscreen: turns off DWM, faster (not alt-tab friendly)\n\
+                     Borderless Windowed: windowed fullscreen (alt-tab friendly, overlays work)\n\
+                     Windowed: regular desktop windowed\n\
+                     - Borderless overrides Fullscreen if both enabled in config",
+                );
             },
         );
     }

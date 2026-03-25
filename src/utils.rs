@@ -177,14 +177,14 @@ pub fn clear_screenshots() -> io::Result<()> {
                 return Err(io::Error::new(
                     io::ErrorKind::NotFound,
                     "Documents folder not found",
-                ))
+                ));
             }
         },
         None => {
             return Err(io::Error::new(
                 io::ErrorKind::NotFound,
                 "Documents folder not found",
-            ))
+            ));
         }
     };
 
@@ -214,14 +214,14 @@ pub fn clear_logs() -> io::Result<()> {
                 return Err(io::Error::new(
                     io::ErrorKind::NotFound,
                     "Documents folder not found",
-                ))
+                ));
             }
         },
         None => {
             return Err(io::Error::new(
                 io::ErrorKind::NotFound,
                 "Documents folder not found",
-            ))
+            ));
         }
     };
 
