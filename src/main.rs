@@ -51,7 +51,6 @@ fn main() -> eframe::Result {
         cached_video_settings: None,
         is_reloading_video: false,
         video_readonly: None,
-        /* Test screenshot textures */
         image_textures: HashMap::new(),
         /* Comparison slider state */
         shadow_compare_ratio: 0.5,
@@ -155,7 +154,6 @@ struct MyApp {
     video_readonly: Option<bool>,
     is_reloading_video: bool,
     cached_video_settings: Option<VideoSettings>,
-    /* Test screenshot textures */
     image_textures: HashMap<&'static str, egui::TextureHandle>,
     /* Comparison slider state */
     shadow_compare_ratio: f32,
@@ -344,7 +342,7 @@ impl MyApp {
         ui.image((texture.id(), desired));
     }
 
-    fn draw_test_comparison_slider(
+    fn draw_image_comparison_slider(
         ui: &mut egui::Ui,
         ratio: &mut f32,
         left: &egui::TextureHandle,
@@ -357,7 +355,8 @@ impl MyApp {
 
         if response.dragged() || response.clicked() {
             if let Some(pointer_pos) = response.interact_pointer_pos() {
-                *ratio = ((pointer_pos.x - rect.left()) / rect.width()).clamp(0.0, 1.0);
+                let width = rect.width().max(1.0);
+                *ratio = ((pointer_pos.x - rect.left()) / width).clamp(0.0, 1.0);
             }
         }
 
@@ -371,6 +370,17 @@ impl MyApp {
         );
 
         let split_x = rect.left() + rect.width() * *ratio;
+
+        if let Some(pointer_pos) = response.hover_pos() {
+            let distance = (pointer_pos.x - split_x).abs();
+
+            if distance < 10.0 || response.dragged() {
+                ui.ctx().output_mut(|o| {
+                    o.cursor_icon = egui::CursorIcon::ResizeHorizontal;
+                });
+            }
+        }
+
         let right_rect =
             egui::Rect::from_min_max(egui::pos2(split_x, rect.top()), rect.right_bottom());
 
@@ -658,7 +668,7 @@ impl MyApp {
         }
     }
 
-    /** Draws simple popup for display information window. */
+    /** Draws simple popup for display information window (automatically centered). */
     fn draw_simple_popup(
         ctx: &egui::Context,
         title: impl Into<String>,
@@ -1674,17 +1684,16 @@ impl MyApp {
                 "Changes shadow map size => shadow resolution in-game.\n\
                      Gives substantial performance boost on very high -> high change.\n\
                      Gives small performance boost on high -> medium change.\n\
-                     Can cause flickering while <= low settings.\n\
+                     Can cause flickering when using custom settings.\n\
                      Default range: 1.00 to 2.40.\n",
             );
 
             ui.add_space(8.0);
-            ui.label(egui::RichText::new("Test comparison: Low vs High").strong());
 
             let desired_width = ui.available_width().max(360.0);
             let desired_height = (desired_width * 9.0 / 16.0).clamp(240.0, 720.0);
 
-            Self::draw_test_comparison_slider(
+            Self::draw_image_comparison_slider(
                 ui,
                 &mut shadow_ratio,
                 &shadow_low_tex,
@@ -1692,6 +1701,12 @@ impl MyApp {
                 desired_width,
                 desired_height,
             );
+
+            ui.horizontal(|ui| {
+                ui.label("Left: Low");
+                ui.separator();
+                ui.label("Right: High");
+            });
 
             ui.hyperlink_to(
                 "Very High -> High difference",
@@ -1741,6 +1756,7 @@ impl MyApp {
             |ui| {
                 ui.label(
                     "Corresponds to view distance in-game.\n\
+                     For older PCs I recommend settings to 1.4 and lower.\n\
                      Has significant influence on CPU performance on high values, set as high as you can with leftover performance:");
 
                 ui.hyperlink_to("CPU cost", "https://imgsli.com/MTQ1NTUx/0/4");
