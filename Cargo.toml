@@ -1,7 +1,9 @@
 [package]
 name = "dltweaks"
-version = "0.1.0"
+version = "0.6.0-alpha.1"
 edition = "2024"
+description = "A Dying Light Tweaks Manager."
+build = "build.rs"
 rust-version = "1.92"
 
 [dependencies]
@@ -29,3 +31,15 @@ opt-level = 3
 [profile.release]
 codegen-units = 1
 lto = "thin"
+
+[build-dependencies]
+vergen-git2 = { version = "9", features = ["build"], optional = true }
+
+# Sets up resource for windows target in compile-time.
+[target.'cfg(windows)'.build-dependencies]
+winresource = "0.1.20"
+
+[features]
+# Enables debug info such as git hash and build date. CURRENTLY ALWAYS REQUIRED FEATURE
+vergen = ["dep:vergen-git2"]
+default = ["vergen"]

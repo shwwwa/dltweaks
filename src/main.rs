@@ -19,6 +19,28 @@ use egui::SliderClamping;
 use rfd::FileDialog;
 use std::collections::HashMap;
 
+macro_rules! version {
+    () => {
+        env!("CARGO_PKG_VERSION")
+    };
+}
+
+#[allow(unused_macros)]
+macro_rules! about {
+    () => {
+        concat!(
+            crate::version!(),
+            " | ",
+            env!("VERGEN_BUILD_DATE"),
+            " \"",
+            env!("VERGEN_GIT_SHA"),
+            "\""
+        )
+    };
+}
+
+pub(crate) use {about, version};
+
 const PROGRAM_NAME: &str = if cfg!(debug_assertions) {
     "Dying Light Tweaks (DEBUG BUILD)"
 } else {
@@ -137,7 +159,12 @@ fn main() -> eframe::Result {
 
     app.reload_video_settings_from_file();
 
-    eframe::run_native(PROGRAM_NAME, options, Box::new(|_cc| Ok(Box::new(app))))
+    let program_name: &str = if cfg!(debug_assertions) {
+        &format!("{} {}", PROGRAM_NAME, crate::about!())
+    } else {
+        PROGRAM_NAME
+    };
+    eframe::run_native(program_name, options, Box::new(|_cc| Ok(Box::new(app))))
 }
 
 #[derive(Default)]
@@ -1636,8 +1663,14 @@ impl MyApp {
             "About Dying Light Tweaks",
             &mut self.show_about,
             |ui| {
+                let version: &str = if cfg!(debug_assertions) {
+                    crate::about!()
+                } else {
+                    crate::version!()
+                };
+
                 ui.heading(PROGRAM_NAME);
-                ui.label("Version 0.3.0a");
+                ui.label(format!("Version {}", version));
                 ui.add_space(12.0);
                 ui.label(egui::RichText::new("Made by caffidev").strong());
                 ui.label(format!("A simple {} Manager", PROGRAM_NAME));
