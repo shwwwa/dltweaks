@@ -769,26 +769,7 @@ impl MyApp {
 
                 ui.add_space(8.0);
 
-                let info_response = ui.add(
-                    egui::Button::new(
-                        egui::RichText::new("i")
-                            .strong()
-                            .size(14.0)
-                            .color(egui::Color32::ORANGE),
-                    )
-                    .frame(false)
-                    .corner_radius(10.0)
-                    .min_size(egui::vec2(20.0, 20.0)),
-                );
-
-                if info_response.hovered() {
-                    ui.ctx()
-                        .output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
-                }
-
-                if info_response.clicked() {
-                    self.show_video_readonly_info = true;
-                }
+                Self::draw_info_button(ui, &mut self.show_video_readonly_info);
             });
 
             if self.cached_video_settings.is_some() {
@@ -800,28 +781,7 @@ impl MyApp {
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.push_id("resolution_combo", |ui| {
-                            let info_button = egui::Button::new(
-                                egui::RichText::new("i")
-                                    .strong()
-                                    .size(14.0)
-                                    .color(egui::Color32::ORANGE),
-                            )
-                            .frame(false)
-                            .min_size(egui::Vec2::new(20.0, 20.0))
-                            .corner_radius(10.0)
-                            .sense(egui::Sense::click());
-
-                            let response = ui.add(info_button);
-
-                            if response.hovered() {
-                                ui.ctx().output_mut(|o| {
-                                    o.cursor_icon = egui::CursorIcon::PointingHand;
-                                });
-                            }
-
-                            if response.clicked() {
-                                self.show_resolution_info = true;
-                            }
+                            Self::draw_info_button(ui, &mut self.show_resolution_info);
 
                             egui::ComboBox::from_label("")
                                 .selected_text(current_text)
@@ -915,28 +875,7 @@ impl MyApp {
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.push_id("display_mode_combo", |ui| {
-                            let info_button = egui::Button::new(
-                                egui::RichText::new("i")
-                                    .strong()
-                                    .size(14.0)
-                                    .color(egui::Color32::ORANGE),
-                            )
-                            .frame(false)
-                            .min_size(egui::Vec2::new(20.0, 20.0))
-                            .corner_radius(10.0)
-                            .sense(egui::Sense::click());
-
-                            let response = ui.add(info_button);
-
-                            if response.hovered() {
-                                ui.ctx().output_mut(|o| {
-                                    o.cursor_icon = egui::CursorIcon::PointingHand;
-                                });
-                            }
-
-                            if response.clicked() {
-                                self.show_display_mode_info = true;
-                            }
+                            Self::draw_info_button(ui, &mut self.show_display_mode_info);
 
                             egui::ComboBox::from_label("")
                                 .selected_text(current_mode)
