@@ -1961,27 +1961,25 @@ impl eframe::App for MyApp {
             self.is_reloading_video = false;
         });
 
-        if !self.status.is_empty() {
-            egui::TopBottomPanel::bottom("status_bar").show(ctx, |ui| {
-                ui.add_space(4.0);
-                ui.horizontal(|ui| {
+        egui::TopBottomPanel::bottom("status_bar").show(ctx, |ui| {
+            ui.add_space(4.0);
+            ui.horizontal(|ui| {
+                if !self.status.is_empty() {
                     ui.colored_label(self.status.color, &self.status.text);
-
-                    let config_exists = utils::documents_config_exists();
-                    let config_text = if config_exists {
-                        egui::RichText::new("Documents configs: Found").color(egui::Color32::GREEN)
-                    } else {
-                        egui::RichText::new("Documents configs: Not Found")
-                            .color(egui::Color32::RED)
-                    };
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.label(config_text);
-                    });
+                }
+                let config_exists = utils::documents_config_exists();
+                let config_text = if config_exists {
+                    egui::RichText::new("Documents configs: Found").color(egui::Color32::GREEN)
+                } else {
+                    egui::RichText::new("Documents configs: Not Found").color(egui::Color32::RED)
+                };
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.label(config_text);
                 });
-
-                ui.add_space(4.0);
             });
-        }
+
+            ui.add_space(4.0);
+        });
     }
 
     /// Save on app close for extra safety
