@@ -48,9 +48,14 @@ fn main() {
     }
 
     let base_version = env!("CARGO_PKG_VERSION");
-    let full_version = format!("{}+build.{}", base_version, build_number);
 
-    println!("cargo:rustc-env=DLTWEAKS_VERSION={}", full_version);
+    let version = if cfg!(debug_assertions) {
+        format!("{}+build.{}", base_version, build_number)
+    } else {
+        base_version.to_string()
+    };
+
+    println!("cargo:rustc-env=DLTWEAKS_VERSION={}", version);
 
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=build_number.txt");

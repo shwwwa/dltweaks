@@ -1,6 +1,6 @@
 [package]
 name = "dltweaks"
-version = "0.6.0-alpha.1"
+version = "0.6.0-alpha.2"
 edition = "2024"
 description = "A Dying Light Tweaks Manager."
 build = "build.rs"
