@@ -1967,8 +1967,7 @@ impl eframe::App for MyApp {
                 if !self.status.is_empty() {
                     ui.colored_label(self.status.color, &self.status.text);
                 }
-                let config_exists = utils::documents_config_exists();
-                let config_text = if config_exists {
+                let config_text = if utils::documents_config_exists() {
                     egui::RichText::new("Documents configs: Found").color(egui::Color32::GREEN)
                 } else {
                     egui::RichText::new("Documents configs: Not Found").color(egui::Color32::RED)
