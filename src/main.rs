@@ -21,7 +21,7 @@ use std::collections::HashMap;
 
 macro_rules! version {
     () => {
-        env!("CARGO_PKG_VERSION")
+        env!("DLTWEAKS_VERSION")
     };
 }
 
