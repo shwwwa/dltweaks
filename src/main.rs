@@ -496,8 +496,8 @@ impl MyApp {
                 self.resolution_width_custom = res_w;
                 self.resolution_height_custom = res_h;
 
-                self.fullscreen = video_opt.map_or(false, |s| s.fullscreen);
-                self.borderless = video_opt.map_or(false, |s| s.borderless);
+                self.fullscreen = video_opt.is_some_and(|s| s.fullscreen);
+                self.borderless = video_opt.is_some_and(|s| s.borderless);
                 if self.fullscreen && self.borderless {
                     self.fullscreen = false;
                 }
@@ -564,7 +564,7 @@ impl MyApp {
                     .and_then(|s| s.disable_dwm.map(EnabledDisabled::from_i32))
                     .unwrap_or(EnabledDisabled::Disabled);
 
-                self.oculus_enabled = if video_opt.map_or(false, |s| s.oculus_enabled) {
+                self.oculus_enabled = if video_opt.is_some_and(|s| s.oculus_enabled) {
                     EnabledDisabled::Enabled
                 } else {
                     EnabledDisabled::Disabled

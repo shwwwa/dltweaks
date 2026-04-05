@@ -19,6 +19,7 @@ sysinfo = { version = "0.37.2", default-features = false, features = ["disk"] }
 toml = "0.9.11"
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+steamdepot = "0.3.3"
 
 # Enable a small amount of optimization in the dev profile.
 [profile.dev]

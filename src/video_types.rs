@@ -135,6 +135,7 @@ impl FoliageQuality {
 }
 
 impl MaxFpsPreset {
+    #[allow(clippy::wildcard_in_or_patterns)]
     pub fn from_value(value: i32) -> Self {
         match value {
             0 | _ if value < 0 => Self::Uncapped,
@@ -253,7 +254,11 @@ impl ResolutionPreset {
 }
 
 fn gcd(a: u32, b: u32) -> u32 {
-    if b == 0 { a } else { gcd(b, a % b) }
+    if b == 0 {
+        a
+    } else {
+        gcd(b, a % b)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
