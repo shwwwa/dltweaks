@@ -618,7 +618,10 @@ impl MyApp {
 
         VideoSettings {
             resolution: Some((res_w, res_h)),
+            tiny_objects_range: self.cached_video_settings.as_ref().and_then(|s| s.tiny_objects_range),
             window_offset: self.cached_video_settings.as_ref().and_then(|s| s.window_offset),
+            monitor: self.cached_video_settings.as_ref().and_then(|s| s.monitor),
+            tv3d_settings: self.cached_video_settings.as_ref().and_then(|s| s.tv3d_settings.clone()),
             version: self.cached_video_settings.as_ref().map(|s| s.version).unwrap_or(1),
             fullscreen: self.fullscreen,
             borderless: self.borderless,

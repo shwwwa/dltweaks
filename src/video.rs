@@ -69,8 +69,14 @@ pub struct VideoSettings {
     pub oculus_enabled: bool,
     /** Corresponds to Nvidia effects in-game (hbao+, dof, pcss). */
     pub nvidia_effects: Option<(i32, i32, i32)>,
+    /** Tiny objects visibility range, preserved as-is. */
+    pub tiny_objects_range: Option<f32>,
     /** Window position offset, preserved as-is. */
     pub window_offset: Option<(i32, i32)>,
+    /** Monitor index (-1 = primary), preserved as-is. */
+    pub monitor: Option<i32>,
+    /** 3DTV settings, preserved as raw string since format is ambiguous. */
+    pub tv3d_settings: Option<String>,
     /** video.scr format version, defaults to 1 if absent. */
     pub version: i32,
 }
@@ -97,7 +103,10 @@ impl Default for VideoSettings {
             disable_dwm: None,
             oculus_enabled: false,
             nvidia_effects: None,
+            tiny_objects_range: None,
             window_offset: None,
+            monitor: None,
+            tv3d_settings: None,
             version: 1,
         }
     }
@@ -113,11 +122,20 @@ pub fn serialize_video_scr(settings: &VideoSettings) -> String {
     if let Some((x, y)) = settings.window_offset {
         lines.push(format!("WindowOffset({},{})", x, y));
     }
+    if settings.borderless {
+        lines.push("Borderless()".to_string());
+    }
+    if let Some(v) = settings.monitor {
+        lines.push(format!("Monitor({})", v));
+    }
     if let Some(q) = settings.texture_quality {
         lines.push(format!("TextureQuality(\"{}\")", q.as_str()));
     }
-    if let Some(v) = settings.gamma_float {
-        lines.push(format!("GammaFloat({})", v));
+    if let Some((a, b)) = settings.vis_range {
+        lines.push(format!("VisRange({:.2}, {:.2})", a, b));
+    }
+    if let Some(v) = settings.tiny_objects_range {
+        lines.push(format!("TinyObjectsRange({:.2})", v));
     }
     if let Some(s) = settings.shadows {
         if s != AdditionalShadows::Off {
@@ -130,29 +148,30 @@ pub fn serialize_video_scr(settings: &VideoSettings) -> String {
     if let Some(v) = settings.spot_shadow_map_size {
         lines.push(format!("SpotShadowMapSize({})", v));
     }
+    if let Some(v) = settings.gamma_float {
+        lines.push(format!("GammaFloat({:.2})", v));
+    }
     if settings.fullscreen {
         lines.push("Fullscreen()".to_string());
-    }
-    if settings.borderless {
-        lines.push("Borderless()".to_string());
     }
     if let Some(v) = settings.max_fps {
         lines.push(format!("MaxFPS({})", v));
     }
-    if let Some(v) = settings.vsync {
-        lines.push(format!("VSync({})", v));
-    }
     if let Some(v) = settings.grass_quality {
         lines.push(format!("GrassQuality({})", v));
     }
+    if let Some(v) = settings.vsync {
+        lines.push(format!("VSync({})", v));
+    }
     if let Some((a, b, c)) = settings.nvidia_effects {
-        lines.push(format!("NvidiaEffects({},{},{})", a, b, c));
+        if (a, b, c) != (0, 0, 0) {
+            lines.push(format!("NvidiaEffects({},{},{})", a, b, c));
+        }
     }
     if let Some(v) = settings.extra_game_fov {
-        lines.push(format!("ExtraGameFov({:.1})", v));
-    }
-    if let Some((a, b)) = settings.vis_range {
-        lines.push(format!("VisRange({:.2},{:.2})", a, b));
+        if v != 0.0 {
+            lines.push(format!("ExtraGameFov({:.1})", v));
+        }
     }
     if settings.oculus_enabled {
         lines.push("OculusEnabled()".to_string());
@@ -168,6 +187,9 @@ pub fn serialize_video_scr(settings: &VideoSettings) -> String {
     }
     if let Some(v) = settings.disable_dwm {
         lines.push(format!("DisableDWM({})", v));
+    }
+    if let Some(ref s) = settings.tv3d_settings {
+        lines.push(format!("3dtvSettings({})", s));
     }
     lines.push(format!("Version({})", settings.version));
 
@@ -303,6 +325,11 @@ pub fn parse_video_scr() -> io::Result<VideoSettings> {
                         }
                     }
                 }
+                "TinyObjectsRange" => {
+                    if let Some(v) = parse_single_f32(value_part) {
+                        settings.tiny_objects_range = Some(v);
+                    }
+                }
                 "WindowOffset" => {
                     if let Some((a, b)) = parse_two_i32(value_part) {
                         settings.window_offset = Some((a, b));
@@ -313,7 +340,14 @@ pub fn parse_video_scr() -> io::Result<VideoSettings> {
                         settings.version = v;
                     }
                 }
-                "Monitor" | "3dtvSettings" => {}
+                "Monitor" => {
+                    if let Some(v) = parse_single_i32(value_part) {
+                        settings.monitor = Some(v);
+                    }
+                }
+                "3dtvSettings" => {
+                    settings.tv3d_settings = Some(value_part.to_string());
+                }
                 key => {
                     eprintln!("Unknown key found in video.scr: {}", key);
                 }
