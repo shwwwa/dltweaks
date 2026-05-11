@@ -619,6 +619,7 @@ impl MyApp {
         VideoSettings {
             resolution: Some((res_w, res_h)),
             window_offset: self.cached_video_settings.as_ref().and_then(|s| s.window_offset),
+            version: self.cached_video_settings.as_ref().map(|s| s.version).unwrap_or(1),
             fullscreen: self.fullscreen,
             borderless: self.borderless,
             oculus_enabled: self.oculus_enabled == EnabledDisabled::Enabled,

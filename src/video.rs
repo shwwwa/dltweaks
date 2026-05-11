@@ -32,7 +32,7 @@ pub const VIDEO_SCR_COMMENTS: [&str; 23] = [
 ];
 
 /** Parsed video settings from video.scr. */
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct VideoSettings {
     /** Game resolution (width, height) */
     pub resolution: Option<(u32, u32)>,
@@ -71,6 +71,36 @@ pub struct VideoSettings {
     pub nvidia_effects: Option<(i32, i32, i32)>,
     /** Window position offset, preserved as-is. */
     pub window_offset: Option<(i32, i32)>,
+    /** video.scr format version, defaults to 1 if absent. */
+    pub version: i32,
+}
+
+impl Default for VideoSettings {
+    fn default() -> Self {
+        Self {
+            resolution: None,
+            fullscreen: false,
+            borderless: false,
+            vsync: None,
+            max_fps: None,
+            texture_quality: None,
+            vis_range: None,
+            shadows: None,
+            shadow_map_size: None,
+            spot_shadow_map_size: None,
+            gamma_float: None,
+            grass_quality: None,
+            extra_game_fov: None,
+            ambient_occlusion: None,
+            motion_blur: None,
+            anti_aliasing: None,
+            disable_dwm: None,
+            oculus_enabled: false,
+            nvidia_effects: None,
+            window_offset: None,
+            version: 1,
+        }
+    }
 }
 
 pub fn serialize_video_scr(settings: &VideoSettings) -> String {
@@ -119,10 +149,10 @@ pub fn serialize_video_scr(settings: &VideoSettings) -> String {
         lines.push(format!("NvidiaEffects({},{},{})", a, b, c));
     }
     if let Some(v) = settings.extra_game_fov {
-        lines.push(format!("ExtraGameFov({})", v));
+        lines.push(format!("ExtraGameFov({:.1})", v));
     }
     if let Some((a, b)) = settings.vis_range {
-        lines.push(format!("VisRange({},{})", a, b));
+        lines.push(format!("VisRange({:.2},{:.2})", a, b));
     }
     if settings.oculus_enabled {
         lines.push("OculusEnabled()".to_string());
@@ -139,6 +169,7 @@ pub fn serialize_video_scr(settings: &VideoSettings) -> String {
     if let Some(v) = settings.disable_dwm {
         lines.push(format!("DisableDWM({})", v));
     }
+    lines.push(format!("Version({})", settings.version));
 
     let mut out = lines.join("\n");
     out.push('\n');
@@ -277,7 +308,12 @@ pub fn parse_video_scr() -> io::Result<VideoSettings> {
                         settings.window_offset = Some((a, b));
                     }
                 }
-                "Version" | "Monitor" | "3dtvSettings" => {}
+                "Version" => {
+                    if let Some(v) = parse_single_i32(value_part) {
+                        settings.version = v;
+                    }
+                }
+                "Monitor" | "3dtvSettings" => {}
                 key => {
                     eprintln!("Unknown key found in video.scr: {}", key);
                 }
