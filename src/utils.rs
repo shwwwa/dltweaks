@@ -241,3 +241,38 @@ pub fn clear_logs() -> io::Result<()> {
 
     Ok(())
 }
+
+const SPEECH_FOLDERS: &[(&str, &str)] = &[
+    ("SpeechBr", "Portuguese - Brazil"),
+    ("SpeechDe", "German"),
+    ("SpeechEl", "Spanish - Latin America"),
+    ("SpeechEn", "English"),
+    ("SpeechEs", "Spanish - Spain"),
+    ("SpeechFr", "French"),
+    ("SpeechIt", "Italian"),
+    ("SpeechPl", "Polish"),
+];
+
+/** Detects the game language by checking which SpeechXx folder exists under game_path/DW. */
+pub fn detect_game_language(game_path: &str) -> &'static str {
+    if game_path.is_empty() {
+        return "Unknown";
+    }
+
+    let dw = Path::new(game_path).join("DW");
+    if !dw.is_dir() {
+        return "Unknown";
+    }
+
+    let mut found: Option<&'static str> = None;
+    for &(folder, lang) in SPEECH_FOLDERS {
+        if dw.join(folder).is_dir() {
+            if found.is_some() {
+                return "Unknown";
+            }
+            found = Some(lang);
+        }
+    }
+
+    found.unwrap_or("Unknown")
+}

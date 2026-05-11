@@ -618,11 +618,24 @@ impl MyApp {
 
         VideoSettings {
             resolution: Some((res_w, res_h)),
-            tiny_objects_range: self.cached_video_settings.as_ref().and_then(|s| s.tiny_objects_range),
-            window_offset: self.cached_video_settings.as_ref().and_then(|s| s.window_offset),
+            tiny_objects_range: self
+                .cached_video_settings
+                .as_ref()
+                .and_then(|s| s.tiny_objects_range),
+            window_offset: self
+                .cached_video_settings
+                .as_ref()
+                .and_then(|s| s.window_offset),
             monitor: self.cached_video_settings.as_ref().and_then(|s| s.monitor),
-            tv3d_settings: self.cached_video_settings.as_ref().and_then(|s| s.tv3d_settings.clone()),
-            version: self.cached_video_settings.as_ref().map(|s| s.version).unwrap_or(1),
+            tv3d_settings: self
+                .cached_video_settings
+                .as_ref()
+                .and_then(|s| s.tv3d_settings.clone()),
+            version: self
+                .cached_video_settings
+                .as_ref()
+                .map(|s| s.version)
+                .unwrap_or(1),
             fullscreen: self.fullscreen,
             borderless: self.borderless,
             oculus_enabled: self.oculus_enabled == EnabledDisabled::Enabled,
@@ -1744,6 +1757,18 @@ impl MyApp {
         });
     }
 
+    /** Shows language UI. */
+    fn show_language_ui(&mut self, ui: &mut egui::Ui) {
+        ui.group(|ui| {
+            ui.heading("Language");
+
+            ui.horizontal(|ui| {
+                ui.label("Language: ");
+                ui.label(utils::detect_game_language(&self.config.game_path));
+            });
+        });
+    }
+
     /** Draws about windows when it is needed. */
     fn handle_info_windows(&mut self, ctx: &egui::Context) {
         Self::draw_simple_popup(
@@ -2042,6 +2067,10 @@ impl eframe::App for MyApp {
                     ui.add_space(8.0);
 
                     self.show_cleanup_ui(ui);
+
+                    ui.add_space(8.0);
+
+                    self.show_language_ui(ui);
                 });
 
             self.handle_info_windows(ctx);
