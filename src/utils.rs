@@ -2,23 +2,18 @@ use crate::EXECUTABLE_NAME;
 use directories::UserDirs;
 use sha2::{Digest, Sha256};
 use std::fs;
-use std::io;
+use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use sysinfo::Disks;
 
 pub const BYTES_IN_MEGABYTE: u64 = 1024 * 1024;
 
-/** Returns path to Documents/DyingLight/out/{subfolder} or None if Documents not accessible. */
-fn get_documents_out_subdir(subfolder: &str) -> Option<PathBuf> {
-    let docs = match UserDirs::new() {
-        Some(ud) => match ud.document_dir() {
-            Some(d) => d.to_path_buf(),
-            None => return None,
-        },
-        None => return None,
-    };
+fn get_documents_dir() -> Option<PathBuf> {
+    Some(UserDirs::new()?.document_dir()?.to_path_buf())
+}
 
-    Some(docs.join("DyingLight").join("out").join(subfolder))
+fn get_documents_out_subdir(subfolder: &str) -> Option<PathBuf> {
+    Some(get_documents_dir()?.join("DyingLight").join("out").join(subfolder))
 }
 
 /** Returns path to dumps/ or None if game_path empty/invalid. */
@@ -55,15 +50,9 @@ fn collect_file_stats(dir: &Path, extension: &str) -> (f64, usize) {
 
 /** Checks if the DL1 documents config folder exists. */
 pub fn documents_config_exists() -> bool {
-    let docs = match UserDirs::new() {
-        Some(ud) => match ud.document_dir() {
-            Some(d) => d.to_path_buf(),
-            None => return false,
-        },
-        None => return false,
-    };
-
-    docs.join("DyingLight").is_dir()
+    get_documents_dir()
+        .map(|d| d.join("DyingLight").is_dir())
+        .unwrap_or(false)
 }
 
 /** Gets you free space on the drive of given game_path in MiB. */
@@ -120,34 +109,18 @@ pub fn open_dumps_folder(game_path: &str) {
 
 /** Opens the screenshots folder in file explorer (creates if missing). */
 pub fn open_screenshots_folder() {
-    let docs = match UserDirs::new() {
-        Some(ud) => match ud.document_dir() {
-            Some(d) => d.to_path_buf(),
-            None => return,
-        },
-        None => return,
-    };
-
-    let screenshots_dir = docs.join("DyingLight").join("out").join("screenshots");
-
-    let _ = fs::create_dir_all(&screenshots_dir);
-    let _ = open::that(&screenshots_dir);
+    if let Some(dir) = get_documents_out_subdir("screenshots") {
+        let _ = fs::create_dir_all(&dir);
+        let _ = open::that(&dir);
+    }
 }
 
 /** Opens the logs folder in file explorer (creates if missing). */
 pub fn open_logs_folder() {
-    let docs = match UserDirs::new() {
-        Some(ud) => match ud.document_dir() {
-            Some(d) => d.to_path_buf(),
-            None => return,
-        },
-        None => return,
-    };
-
-    let logs_dir = docs.join("DyingLight").join("out").join("logs");
-
-    let _ = fs::create_dir_all(&logs_dir);
-    let _ = open::that(&logs_dir);
+    if let Some(dir) = get_documents_out_subdir("logs") {
+        let _ = fs::create_dir_all(&dir);
+        let _ = open::that(&dir);
+    }
 }
 
 /** Deletes all .dmp files in game_path/dumps folder. */
@@ -171,75 +144,31 @@ pub fn clear_dumps(game_path: &str) -> io::Result<()> {
 
 /** Deletes all .tga files in screenshots folder. */
 pub fn clear_screenshots() -> io::Result<()> {
-    let docs = match UserDirs::new() {
-        Some(ud) => match ud.document_dir() {
-            Some(d) => d.to_path_buf(),
-            None => {
-                return Err(io::Error::new(
-                    io::ErrorKind::NotFound,
-                    "Documents folder not found",
-                ));
-            }
-        },
-        None => {
-            return Err(io::Error::new(
-                io::ErrorKind::NotFound,
-                "Documents folder not found",
-            ));
-        }
-    };
-
-    let screenshots_dir = docs.join("DyingLight").join("out").join("screenshots");
-
-    if !screenshots_dir.is_dir() {
-        return Ok(());
-    }
-
-    for entry in fs::read_dir(screenshots_dir)? {
-        let entry = entry?;
-        let path = entry.path();
-        if path.extension().and_then(|s| s.to_str()) == Some("tga") {
-            fs::remove_file(path)?;
-        }
-    }
-
-    Ok(())
+    let dir = get_documents_out_subdir("screenshots").ok_or_else(|| {
+        io::Error::new(io::ErrorKind::NotFound, "Documents folder not found")
+    })?;
+    clear_files_with_ext(&dir, "tga")
 }
 
 /** Deletes all .log files in logs folder. */
 pub fn clear_logs() -> io::Result<()> {
-    let docs = match UserDirs::new() {
-        Some(ud) => match ud.document_dir() {
-            Some(d) => d.to_path_buf(),
-            None => {
-                return Err(io::Error::new(
-                    io::ErrorKind::NotFound,
-                    "Documents folder not found",
-                ));
-            }
-        },
-        None => {
-            return Err(io::Error::new(
-                io::ErrorKind::NotFound,
-                "Documents folder not found",
-            ));
-        }
-    };
+    let dir = get_documents_out_subdir("logs").ok_or_else(|| {
+        io::Error::new(io::ErrorKind::NotFound, "Documents folder not found")
+    })?;
+    clear_files_with_ext(&dir, "log")
+}
 
-    let logs_dir = docs.join("DyingLight").join("out").join("logs");
-
-    if !logs_dir.is_dir() {
+fn clear_files_with_ext(dir: &Path, ext: &str) -> io::Result<()> {
+    if !dir.is_dir() {
         return Ok(());
     }
-
-    for entry in fs::read_dir(&logs_dir)? {
+    for entry in fs::read_dir(dir)? {
         let entry = entry?;
         let path = entry.path();
-        if path.extension().and_then(|s| s.to_str()) == Some("log") {
+        if path.extension().and_then(|s| s.to_str()) == Some(ext) {
             fs::remove_file(path)?;
         }
     }
-
     Ok(())
 }
 
@@ -261,60 +190,53 @@ const KNOWN_HASHES: &[(&str, &str)] = &[
     ),
 ];
 
-/** Returns sorted modification timestamps (secs since UNIX epoch) for all files in <folder>/Data/. */
-pub fn speech_folder_mtimes(folder: &Path) -> Option<Vec<u64>> {
+fn sorted_data_entries(folder: &Path) -> Option<Vec<fs::DirEntry>> {
     let data_dir = folder.join("Data");
     if !data_dir.is_dir() {
         return None;
     }
-
     let mut entries: Vec<_> = fs::read_dir(&data_dir)
         .ok()?
         .flatten()
         .filter(|e| e.path().is_file())
         .collect();
     entries.sort_by_key(|e| e.file_name());
+    Some(entries)
+}
 
-    entries
-        .iter()
-        .map(|e| {
-            e.metadata()
-                .ok()?
-                .modified()
-                .ok()?
-                .duration_since(std::time::UNIX_EPOCH)
-                .ok()
-                .map(|d| d.as_secs())
-        })
-        .collect()
+/** Returns sorted modification timestamps (secs since UNIX epoch) for all files in <folder>/Data/.
+    Files whose metadata cannot be read are skipped rather than failing the whole check. */
+pub fn speech_folder_mtimes(folder: &Path) -> Option<Vec<u64>> {
+    Some(
+        sorted_data_entries(folder)?
+            .iter()
+            .filter_map(|e| {
+                e.metadata()
+                    .ok()?
+                    .modified()
+                    .ok()?
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .ok()
+                    .map(|d| d.as_secs())
+            })
+            .collect(),
+    )
 }
 
 fn hash_speech_folder(folder: &Path) -> Option<String> {
-    let data_dir = folder.join("Data");
-    if !data_dir.is_dir() {
-        return None;
-    }
-
-    let mut entries: Vec<_> = fs::read_dir(&data_dir)
-        .ok()?
-        .flatten()
-        .filter(|e| e.path().is_file())
-        .collect();
-    entries.sort_by_key(|e| e.file_name());
-
     let mut hasher = Sha256::new();
-    for entry in entries {
-        let bytes = fs::read(entry.path()).ok()?;
-        hasher.update(&bytes);
+    for entry in sorted_data_entries(folder)? {
+        let mut file = fs::File::open(entry.path()).ok()?;
+        let mut buf = [0u8; 65536];
+        loop {
+            let n = file.read(&mut buf).ok()?;
+            if n == 0 {
+                break;
+            }
+            hasher.update(&buf[..n]);
+        }
     }
-
-    Some(
-        hasher
-            .finalize()
-            .iter()
-            .map(|b| format!("{:02x}", b))
-            .collect(),
-    )
+    Some(hasher.finalize().iter().map(|b| format!("{:02x}", b)).collect())
 }
 
 fn find_speech_folder(game_path: &str) -> Option<(&'static str, PathBuf)> {
@@ -338,31 +260,54 @@ fn find_speech_folder(game_path: &str) -> Option<(&'static str, PathBuf)> {
     found
 }
 
-/** Returns the current mtimes for the speech folder, or None if not found/multiple. */
-pub fn current_speech_mtimes(game_path: &str) -> Option<Vec<u64>> {
-    let (_, path) = find_speech_folder(game_path)?;
-    speech_folder_mtimes(&path)
+pub struct LanguageResult {
+    pub lang: String,
+    pub folder: String,
+    pub mtimes: Vec<u64>,
 }
 
-/** Detects the game language by checking which SpeechXx folder exists under game_path/DW and verifying its contents. */
-pub fn detect_game_language(game_path: &str) -> String {
-    let (lang, path) = match find_speech_folder(game_path) {
-        Some(f) => f,
-        None => return "Unknown".to_string(),
-    };
+/** Returns folder name + mtimes cheaply (no hashing) for cache validity checks. */
+pub fn current_speech_info(game_path: &str) -> Option<(String, Vec<u64>)> {
+    let (_, path) = find_speech_folder(game_path)?;
+    let folder = path.file_name()?.to_str()?.to_string();
+    let mtimes = speech_folder_mtimes(&path).unwrap_or_default();
+    Some((folder, mtimes))
+}
 
-    match hash_speech_folder(&path) {
-        None => format!("{} (unverified)", lang),
-        Some(hash) => {
-            if let Some(&(_, content_lang)) = KNOWN_HASHES.iter().find(|(h, _)| *h == hash) {
-                if content_lang == lang {
-                    lang.to_string()
-                } else {
-                    format!("{} <{}>", lang, content_lang)
-                }
-            } else {
-                format!("{} (unverified)", lang)
+/** Full language detection: single find_speech_folder call, hash, and mtime collection. */
+pub fn detect_language_full(game_path: &str) -> LanguageResult {
+    let (lang_name, path) = match find_speech_folder(game_path) {
+        Some(f) => f,
+        None => {
+            return LanguageResult {
+                lang: "Unknown".to_string(),
+                folder: String::new(),
+                mtimes: Vec::new(),
             }
         }
-    }
+    };
+
+    let folder = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("")
+        .to_string();
+    let mtimes = speech_folder_mtimes(&path).unwrap_or_default();
+
+    let lang = match hash_speech_folder(&path) {
+        None => format!("{} (unverified)", lang_name),
+        Some(hash) => {
+            if let Some(&(_, content_lang)) = KNOWN_HASHES.iter().find(|(h, _)| *h == hash) {
+                if content_lang == lang_name {
+                    lang_name.to_string()
+                } else {
+                    format!("{} <{}>", lang_name, content_lang)
+                }
+            } else {
+                format!("{} (unverified)", lang_name)
+            }
+        }
+    };
+
+    LanguageResult { lang, folder, mtimes }
 }

@@ -14,6 +14,8 @@ pub struct AppConfig {
     #[serde(default)]
     pub language_cache: String,
     #[serde(default)]
+    pub language_folder: String,
+    #[serde(default)]
     pub language_mtimes: Vec<u64>,
 }
 
@@ -23,8 +25,9 @@ pub fn load_config() -> AppConfig {
     // Try to load config if it exists
     if let Some(path) = get_config_path() {
         if let Ok(content) = fs::read_to_string(&path) {
-            if let Ok(config) = toml::from_str(&content) {
-                return config;
+            match toml::from_str(&content) {
+                Ok(config) => return config,
+                Err(e) => eprintln!("[dltweaks] Failed to parse config: {}", e),
             }
         }
     }

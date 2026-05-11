@@ -135,10 +135,9 @@ impl FoliageQuality {
 }
 
 impl MaxFpsPreset {
-    #[allow(clippy::wildcard_in_or_patterns)]
     pub fn from_value(value: i32) -> Self {
         match value {
-            0 | _ if value < 0 => Self::Uncapped,
+            v if v <= 0 => Self::Uncapped,
             30 => Self::Fps30,
             60 => Self::Fps60,
             80 => Self::Fps80,

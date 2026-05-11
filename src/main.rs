@@ -183,7 +183,7 @@ struct MyApp {
     cached_logs_mb: f64,
     cached_logs_count: usize,
     cached_language: String,
-    language_receiver: Option<std::sync::mpsc::Receiver<(String, Vec<u64>)>>,
+    language_receiver: Option<std::sync::mpsc::Receiver<utils::LanguageResult>>,
     video_readonly: Option<bool>,
     is_reloading_video: bool,
     cached_video_settings: Option<VideoSettings>,
@@ -586,16 +586,18 @@ impl MyApp {
             return;
         }
 
-        let current_mtimes = utils::current_speech_mtimes(&self.config.game_path)
-            .unwrap_or_default();
-
-        if !current_mtimes.is_empty()
-            && current_mtimes == self.config.language_mtimes
-            && !self.config.language_cache.is_empty()
-            && self.config.language_cache != "Unknown"
+        if let Some((current_folder, current_mtimes)) =
+            utils::current_speech_info(&self.config.game_path)
         {
-            self.cached_language = self.config.language_cache.clone();
-            return;
+            if !current_mtimes.is_empty()
+                && current_mtimes == self.config.language_mtimes
+                && current_folder == self.config.language_folder
+                && !self.config.language_cache.is_empty()
+                && self.config.language_cache != "Unknown"
+            {
+                self.cached_language = self.config.language_cache.clone();
+                return;
+            }
         }
 
         self.cached_language = "Computing...".to_string();
@@ -603,9 +605,7 @@ impl MyApp {
         let (tx, rx) = std::sync::mpsc::channel();
         self.language_receiver = Some(rx);
         std::thread::spawn(move || {
-            let lang = utils::detect_game_language(&game_path);
-            let mtimes = utils::current_speech_mtimes(&game_path).unwrap_or_default();
-            let _ = tx.send((lang, mtimes));
+            let _ = tx.send(utils::detect_language_full(&game_path));
         });
     }
 
@@ -708,6 +708,7 @@ impl MyApp {
                 true
             }
             Err(e) => {
+                self.is_reloading_video = false;
                 self.status = Status::error(format!("Failed to reload video.scr: {}", e));
                 false
             }
@@ -1208,26 +1209,29 @@ impl MyApp {
                         ui.push_id("display_mode_combo", |ui| {
                             Self::draw_info_button(ui, &mut self.show_display_mode_info);
 
+                            let mut mode: u8 =
+                                if self.fullscreen { 0 } else if self.borderless { 1 } else { 2 };
+                            let prev = mode;
                             egui::ComboBox::from_label("")
                                 .selected_text(current_mode)
                                 .show_ui(ui, |ui| {
-                                    ui.selectable_value(&mut self.fullscreen, true, "Fullscreen")
+                                    ui.selectable_value(&mut mode, 0, "Fullscreen")
                                         .on_hover_text(
                                             "Exclusive fullscreen mode (may alt-tab slower)",
                                         );
-                                    ui.selectable_value(
-                                        &mut self.borderless,
-                                        true,
-                                        "Borderless Windowed",
-                                    )
-                                    .on_hover_text(
-                                        "Windowed fullscreen (fast alt-tab, overlays work better)",
-                                    );
-                                    ui.selectable_value(&mut self.fullscreen, false, "Windowed")
+                                    ui.selectable_value(&mut mode, 1, "Borderless Windowed")
+                                        .on_hover_text(
+                                            "Windowed fullscreen (fast alt-tab, overlays work better)",
+                                        );
+                                    ui.selectable_value(&mut mode, 2, "Windowed")
                                         .on_hover_text(
                                             "Regular windowed mode (default desktop window)",
                                         );
                                 });
+                            if mode != prev {
+                                self.fullscreen = mode == 0;
+                                self.borderless = mode == 1;
+                            }
                         });
                     });
                 });
@@ -2021,19 +2025,21 @@ impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         if let Some(rx) = &self.language_receiver {
             match rx.try_recv() {
-                Ok((lang, mtimes)) => {
-                    if lang == "Unknown" {
+                Ok(result) => {
+                    if result.lang == "Unknown" {
                         self.status = Status::warning(format!(
                             "Language detection failed (path: {})",
                             self.config.game_path
                         ));
                     } else {
-                        self.status = Status::success(format!("Language detected: {}", lang));
-                        self.config.language_cache = lang.clone();
-                        self.config.language_mtimes = mtimes;
+                        self.status =
+                            Status::success(format!("Language detected: {}", result.lang));
+                        self.config.language_cache = result.lang.clone();
+                        self.config.language_folder = result.folder;
+                        self.config.language_mtimes = result.mtimes;
                         let _ = config::save_config(&self.config);
                     }
-                    self.cached_language = lang;
+                    self.cached_language = result.lang;
                     self.language_receiver = None;
                 }
                 Err(std::sync::mpsc::TryRecvError::Empty) => {
