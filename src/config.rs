@@ -11,6 +11,10 @@ pub struct AppConfig {
     pub game_path: String,
     pub use_steam_launch: bool,
     pub launch_args: String,
+    #[serde(default)]
+    pub language_cache: String,
+    #[serde(default)]
+    pub language_mtimes: Vec<u64>,
 }
 
 pub const APP_NAME: &str = "dltweaks";

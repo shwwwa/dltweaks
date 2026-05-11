@@ -1,5 +1,6 @@
 use crate::EXECUTABLE_NAME;
 use directories::UserDirs;
+use sha2::{Digest, Sha256};
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -253,26 +254,115 @@ const SPEECH_FOLDERS: &[(&str, &str)] = &[
     ("SpeechPl", "Polish"),
 ];
 
-/** Detects the game language by checking which SpeechXx folder exists under game_path/DW. */
-pub fn detect_game_language(game_path: &str) -> &'static str {
-    if game_path.is_empty() {
-        return "Unknown";
+const KNOWN_HASHES: &[(&str, &str)] = &[
+    (
+        "c988b83f417820d26ec0b6f6ce290a6d30c8ffc329cf3ec865b31671b4ca69ca",
+        "French",
+    ),
+];
+
+/** Returns sorted modification timestamps (secs since UNIX epoch) for all files in <folder>/Data/. */
+pub fn speech_folder_mtimes(folder: &Path) -> Option<Vec<u64>> {
+    let data_dir = folder.join("Data");
+    if !data_dir.is_dir() {
+        return None;
     }
 
+    let mut entries: Vec<_> = fs::read_dir(&data_dir)
+        .ok()?
+        .flatten()
+        .filter(|e| e.path().is_file())
+        .collect();
+    entries.sort_by_key(|e| e.file_name());
+
+    entries
+        .iter()
+        .map(|e| {
+            e.metadata()
+                .ok()?
+                .modified()
+                .ok()?
+                .duration_since(std::time::UNIX_EPOCH)
+                .ok()
+                .map(|d| d.as_secs())
+        })
+        .collect()
+}
+
+fn hash_speech_folder(folder: &Path) -> Option<String> {
+    let data_dir = folder.join("Data");
+    if !data_dir.is_dir() {
+        return None;
+    }
+
+    let mut entries: Vec<_> = fs::read_dir(&data_dir)
+        .ok()?
+        .flatten()
+        .filter(|e| e.path().is_file())
+        .collect();
+    entries.sort_by_key(|e| e.file_name());
+
+    let mut hasher = Sha256::new();
+    for entry in entries {
+        let bytes = fs::read(entry.path()).ok()?;
+        hasher.update(&bytes);
+    }
+
+    Some(
+        hasher
+            .finalize()
+            .iter()
+            .map(|b| format!("{:02x}", b))
+            .collect(),
+    )
+}
+
+fn find_speech_folder(game_path: &str) -> Option<(&'static str, PathBuf)> {
+    if game_path.is_empty() {
+        return None;
+    }
     let dw = Path::new(game_path).join("DW");
     if !dw.is_dir() {
-        return "Unknown";
+        return None;
     }
-
-    let mut found: Option<&'static str> = None;
+    let mut found: Option<(&'static str, PathBuf)> = None;
     for &(folder, lang) in SPEECH_FOLDERS {
-        if dw.join(folder).is_dir() {
+        let path = dw.join(folder);
+        if path.is_dir() {
             if found.is_some() {
-                return "Unknown";
+                return None;
             }
-            found = Some(lang);
+            found = Some((lang, path));
         }
     }
+    found
+}
 
-    found.unwrap_or("Unknown")
+/** Returns the current mtimes for the speech folder, or None if not found/multiple. */
+pub fn current_speech_mtimes(game_path: &str) -> Option<Vec<u64>> {
+    let (_, path) = find_speech_folder(game_path)?;
+    speech_folder_mtimes(&path)
+}
+
+/** Detects the game language by checking which SpeechXx folder exists under game_path/DW and verifying its contents. */
+pub fn detect_game_language(game_path: &str) -> String {
+    let (lang, path) = match find_speech_folder(game_path) {
+        Some(f) => f,
+        None => return "Unknown".to_string(),
+    };
+
+    match hash_speech_folder(&path) {
+        None => format!("{} (unverified)", lang),
+        Some(hash) => {
+            if let Some(&(_, content_lang)) = KNOWN_HASHES.iter().find(|(h, _)| *h == hash) {
+                if content_lang == lang {
+                    lang.to_string()
+                } else {
+                    format!("{} <{}>", lang, content_lang)
+                }
+            } else {
+                format!("{} (unverified)", lang)
+            }
+        }
+    }
 }

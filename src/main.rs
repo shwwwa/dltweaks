@@ -70,6 +70,8 @@ fn main() -> eframe::Result {
         cached_screenshots_count: 0,
         cached_logs_mb: 0.0,
         cached_logs_count: 0,
+        cached_language: String::new(),
+        language_receiver: None,
         cached_video_settings: None,
         is_reloading_video: false,
         video_readonly: None,
@@ -151,6 +153,8 @@ fn main() -> eframe::Result {
     app.cached_logs_mb = l_mb;
     app.cached_logs_count = l_count;
 
+    app.spawn_language_detection();
+
     if let Some(path) = video::get_video_scr_path() {
         if path.is_file() {
             app.video_readonly = Some(video::is_video_scr_readonly());
@@ -178,6 +182,8 @@ struct MyApp {
     cached_screenshots_count: usize,
     cached_logs_mb: f64,
     cached_logs_count: usize,
+    cached_language: String,
+    language_receiver: Option<std::sync::mpsc::Receiver<(String, Vec<u64>)>>,
     video_readonly: Option<bool>,
     is_reloading_video: bool,
     cached_video_settings: Option<VideoSettings>,
@@ -573,6 +579,36 @@ impl MyApp {
         }
     }
 
+    fn spawn_language_detection(&mut self) {
+        let exe_path = std::path::Path::new(&self.config.game_path).join(EXECUTABLE_NAME);
+        if self.config.game_path.is_empty() || !exe_path.exists() {
+            self.cached_language = "Unknown".to_string();
+            return;
+        }
+
+        let current_mtimes = utils::current_speech_mtimes(&self.config.game_path)
+            .unwrap_or_default();
+
+        if !current_mtimes.is_empty()
+            && current_mtimes == self.config.language_mtimes
+            && !self.config.language_cache.is_empty()
+            && self.config.language_cache != "Unknown"
+        {
+            self.cached_language = self.config.language_cache.clone();
+            return;
+        }
+
+        self.cached_language = "Computing...".to_string();
+        let game_path = self.config.game_path.clone();
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.language_receiver = Some(rx);
+        std::thread::spawn(move || {
+            let lang = utils::detect_game_language(&game_path);
+            let mtimes = utils::current_speech_mtimes(&game_path).unwrap_or_default();
+            let _ = tx.send((lang, mtimes));
+        });
+    }
+
     fn collect_video_settings(&self) -> VideoSettings {
         let (res_w, res_h) = if self.resolution_preset == ResolutionPreset::Custom {
             (self.resolution_width_custom, self.resolution_height_custom)
@@ -894,12 +930,14 @@ impl MyApp {
                         if let Err(e) = config::save_config(&self.config) {
                             self.status = Status::error(format!("Failed to save config: {}", e));
                         }
+                        self.spawn_language_detection();
                     }
                 }
 
                 // Save if path was edited manually
                 if self.config.game_path != old_path {
                     let _ = config::save_config(&self.config);
+                    self.spawn_language_detection();
                 }
             })
         });
@@ -1763,8 +1801,8 @@ impl MyApp {
             ui.heading("Language");
 
             ui.horizontal(|ui| {
-                ui.label("Language: ");
-                ui.label(utils::detect_game_language(&self.config.game_path));
+                ui.label("Dialogue language: ");
+                ui.label(&self.cached_language);
             });
         });
     }
@@ -1981,6 +2019,32 @@ impl MyApp {
 
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        if let Some(rx) = &self.language_receiver {
+            match rx.try_recv() {
+                Ok((lang, mtimes)) => {
+                    if lang == "Unknown" {
+                        self.status = Status::warning(format!(
+                            "Language detection failed (path: {})",
+                            self.config.game_path
+                        ));
+                    } else {
+                        self.status = Status::success(format!("Language detected: {}", lang));
+                        self.config.language_cache = lang.clone();
+                        self.config.language_mtimes = mtimes;
+                        let _ = config::save_config(&self.config);
+                    }
+                    self.cached_language = lang;
+                    self.language_receiver = None;
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => {
+                    ctx.request_repaint();
+                }
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    self.language_receiver = None;
+                }
+            }
+        }
+
         if self.config.dark_mode {
             ctx.set_visuals(egui::Visuals::dark());
         } else {
@@ -2013,6 +2077,15 @@ impl eframe::App for MyApp {
                         if let Err(e) = config::save_config(&self.config) {
                             self.status = Status::error(format!("Failed to save config: {}", e));
                         }
+                    }
+
+                    ui.separator();
+
+                    if ui.button("Rehash language").clicked() {
+                        self.config.language_cache = String::new();
+                        self.config.language_mtimes = Vec::new();
+                        self.spawn_language_detection();
+                        ui.close();
                     }
 
                     ui.separator();
