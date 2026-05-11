@@ -482,107 +482,178 @@ impl MyApp {
         self.cached_logs_count = l_count;
     }
 
+    fn sync_ui_video_settings(&mut self, video_opt: Option<&VideoSettings>) {
+        let (res_w, res_h) = video_opt.and_then(|s| s.resolution).unwrap_or((1920, 1080));
+        self.resolution_preset = ResolutionPreset::from_values(res_w, res_h);
+        self.resolution_width_custom = res_w;
+        self.resolution_height_custom = res_h;
+
+        self.fullscreen = video_opt.is_some_and(|s| s.fullscreen);
+        self.borderless = video_opt.is_some_and(|s| s.borderless);
+        if self.fullscreen && self.borderless {
+            self.fullscreen = false;
+        }
+
+        if let Some(gamma) = video_opt.and_then(|s| s.gamma_float) {
+            self.gamma = gamma;
+            self.gamma_slider_min = gamma.min(0.50);
+            self.gamma_slider_max = gamma.max(1.50);
+        }
+
+        if let Some((view_distance, _)) = video_opt.and_then(|s| s.vis_range) {
+            self.view_distance = view_distance;
+            self.view_distance_slider_min = view_distance.min(1.00);
+            self.view_distance_slider_max = view_distance.max(2.40);
+        }
+
+        if let Some(fov) = video_opt.and_then(|s| s.extra_game_fov) {
+            self.extra_fov = fov;
+            self.extra_fov_slider_min = fov.min(-10.0);
+            self.extra_fov_slider_max = fov.max(20.0);
+        }
+
+        self.texture_quality = video_opt
+            .and_then(|s| s.texture_quality)
+            .unwrap_or(TextureQuality::High);
+
+        let grass_val = video_opt.and_then(|s| s.grass_quality).unwrap_or(0);
+        self.foliage_quality = FoliageQuality::from_value(grass_val);
+        self.foliage_quality_custom = grass_val;
+
+        let map_size = video_opt.and_then(|s| s.shadow_map_size).unwrap_or(2048);
+        let spot_size = video_opt
+            .and_then(|s| s.spot_shadow_map_size)
+            .unwrap_or(2048);
+        self.shadow_quality = ShadowQuality::from_values(map_size, spot_size);
+        self.shadow_map_size_custom = map_size;
+        self.spot_shadow_map_size_custom = spot_size;
+
+        self.additional_shadows = video_opt
+            .and_then(|s| s.shadows)
+            .unwrap_or(AdditionalShadows::Off);
+
+        let max_fps_val = video_opt.and_then(|s| s.max_fps).unwrap_or(0);
+        self.max_fps_preset = MaxFpsPreset::from_value(max_fps_val);
+        self.max_fps_custom = max_fps_val;
+
+        self.vsync = video_opt
+            .and_then(|s| s.vsync.map(EnabledDisabled::from_i32))
+            .unwrap_or(EnabledDisabled::Disabled);
+
+        self.ambient_occlusion = video_opt
+            .and_then(|s| s.ambient_occlusion.map(EnabledDisabled::from_i32))
+            .unwrap_or(EnabledDisabled::Disabled);
+
+        self.motion_blur = video_opt
+            .and_then(|s| s.motion_blur.map(EnabledDisabled::from_i32))
+            .unwrap_or(EnabledDisabled::Disabled);
+
+        self.anti_aliasing = video_opt
+            .and_then(|s| s.anti_aliasing.map(EnabledDisabled::from_i32))
+            .unwrap_or(EnabledDisabled::Disabled);
+
+        self.dwm_optimisations = video_opt
+            .and_then(|s| s.disable_dwm.map(EnabledDisabled::from_i32))
+            .unwrap_or(EnabledDisabled::Disabled);
+
+        self.oculus_enabled = if video_opt.is_some_and(|s| s.oculus_enabled) {
+            EnabledDisabled::Enabled
+        } else {
+            EnabledDisabled::Disabled
+        };
+
+        if let Some((hbao, dof, pcss)) = video_opt.and_then(|s| s.nvidia_effects) {
+            self.nvidia_hbao = EnabledDisabled::from_i32(hbao);
+            self.nvidia_dof = EnabledDisabled::from_i32(dof);
+            self.nvidia_pcss = EnabledDisabled::from_i32(pcss);
+        } else {
+            self.nvidia_hbao = EnabledDisabled::Disabled;
+            self.nvidia_dof = EnabledDisabled::Disabled;
+            self.nvidia_pcss = EnabledDisabled::Disabled;
+        }
+    }
+
+    fn collect_video_settings(&self) -> VideoSettings {
+        let (res_w, res_h) = if self.resolution_preset == ResolutionPreset::Custom {
+            (self.resolution_width_custom, self.resolution_height_custom)
+        } else {
+            self.resolution_preset.as_tuple()
+        };
+
+        let shadow_map_size = if self.shadow_quality == ShadowQuality::Custom {
+            self.shadow_map_size_custom
+        } else {
+            self.shadow_quality.map_size()
+        };
+
+        let spot_shadow_map_size = if self.shadow_quality == ShadowQuality::Custom {
+            self.spot_shadow_map_size_custom
+        } else {
+            self.shadow_quality.spot_size()
+        };
+
+        let grass_quality = if self.foliage_quality == FoliageQuality::Custom {
+            self.foliage_quality_custom
+        } else {
+            self.foliage_quality.as_value()
+        };
+
+        let max_fps = if self.max_fps_preset == MaxFpsPreset::Custom {
+            self.max_fps_custom
+        } else {
+            self.max_fps_preset.as_value()
+        };
+
+        let shadows = match self.additional_shadows {
+            AdditionalShadows::Off => None,
+            other => Some(other),
+        };
+
+        let vis_range = self
+            .cached_video_settings
+            .as_ref()
+            .and_then(|s| s.vis_range)
+            .map(|(_, b)| (self.view_distance, b))
+            .unwrap_or((self.view_distance, self.view_distance));
+
+        VideoSettings {
+            resolution: Some((res_w, res_h)),
+            window_offset: self.cached_video_settings.as_ref().and_then(|s| s.window_offset),
+            fullscreen: self.fullscreen,
+            borderless: self.borderless,
+            oculus_enabled: self.oculus_enabled == EnabledDisabled::Enabled,
+            vsync: Some(self.vsync.as_i32()),
+            texture_quality: Some(self.texture_quality),
+            shadows,
+            vis_range: Some(vis_range),
+            max_fps: Some(max_fps),
+            shadow_map_size: Some(shadow_map_size),
+            spot_shadow_map_size: Some(spot_shadow_map_size),
+            gamma_float: Some(self.gamma),
+            grass_quality: Some(grass_quality),
+            extra_game_fov: Some(self.extra_fov),
+            ambient_occlusion: Some(self.ambient_occlusion.as_i32()),
+            motion_blur: Some(self.motion_blur.as_i32()),
+            anti_aliasing: Some(self.anti_aliasing.as_i32()),
+            disable_dwm: Some(self.dwm_optimisations.as_i32()),
+            nvidia_effects: Some((
+                self.nvidia_hbao.as_i32(),
+                self.nvidia_dof.as_i32(),
+                self.nvidia_pcss.as_i32(),
+            )),
+        }
+    }
+
     /** Reloads video settings from video.scr file */
     fn reload_video_settings_from_file(&mut self) -> bool {
         self.is_reloading_video = true;
 
         match video::parse_video_scr() {
             Ok(video) => {
+                self.sync_ui_video_settings(Some(&video));
                 self.cached_video_settings = Some(video);
-                let video_opt = self.cached_video_settings.as_ref();
-
-                let (res_w, res_h) = video_opt.and_then(|s| s.resolution).unwrap_or((1920, 1080));
-                self.resolution_preset = ResolutionPreset::from_values(res_w, res_h);
-                self.resolution_width_custom = res_w;
-                self.resolution_height_custom = res_h;
-
-                self.fullscreen = video_opt.is_some_and(|s| s.fullscreen);
-                self.borderless = video_opt.is_some_and(|s| s.borderless);
-                if self.fullscreen && self.borderless {
-                    self.fullscreen = false;
-                }
-
-                if let Some(gamma) = video_opt.and_then(|s| s.gamma_float) {
-                    self.gamma = gamma;
-                    self.gamma_slider_min = gamma.min(0.50);
-                    self.gamma_slider_max = gamma.max(1.50);
-                }
-
-                if let Some((view_distance, _)) = video_opt.and_then(|s| s.vis_range) {
-                    self.view_distance = view_distance;
-                    self.view_distance_slider_min = view_distance.min(1.00);
-                    self.view_distance_slider_max = view_distance.max(2.40);
-                }
-
-                if let Some(fov) = video_opt.and_then(|s| s.extra_game_fov) {
-                    self.extra_fov = fov;
-                    self.extra_fov_slider_min = fov.min(-10.0);
-                    self.extra_fov_slider_max = fov.max(20.0);
-                }
-
-                self.texture_quality = video_opt
-                    .and_then(|s| s.texture_quality)
-                    .unwrap_or(TextureQuality::High);
-
-                let grass_val = video_opt.and_then(|s| s.grass_quality).unwrap_or(0);
-                self.foliage_quality = FoliageQuality::from_value(grass_val);
-                self.foliage_quality_custom = grass_val;
-
-                let map_size = video_opt.and_then(|s| s.shadow_map_size).unwrap_or(2048);
-                let spot_size = video_opt
-                    .and_then(|s| s.spot_shadow_map_size)
-                    .unwrap_or(2048);
-                self.shadow_quality = ShadowQuality::from_values(map_size, spot_size);
-                self.shadow_map_size_custom = map_size;
-                self.spot_shadow_map_size_custom = spot_size;
-
-                self.additional_shadows = video_opt
-                    .and_then(|s| s.shadows)
-                    .unwrap_or(AdditionalShadows::Off);
-
-                let max_fps_val = video_opt.and_then(|s| s.max_fps).unwrap_or(0);
-                self.max_fps_preset = MaxFpsPreset::from_value(max_fps_val);
-                self.max_fps_custom = max_fps_val;
-
-                self.vsync = video_opt
-                    .and_then(|s| s.vsync.map(EnabledDisabled::from_i32))
-                    .unwrap_or(EnabledDisabled::Disabled);
-
-                self.ambient_occlusion = video_opt
-                    .and_then(|s| s.ambient_occlusion.map(EnabledDisabled::from_i32))
-                    .unwrap_or(EnabledDisabled::Disabled);
-
-                self.motion_blur = video_opt
-                    .and_then(|s| s.motion_blur.map(EnabledDisabled::from_i32))
-                    .unwrap_or(EnabledDisabled::Disabled);
-
-                self.anti_aliasing = video_opt
-                    .and_then(|s| s.anti_aliasing.map(EnabledDisabled::from_i32))
-                    .unwrap_or(EnabledDisabled::Disabled);
-
-                self.dwm_optimisations = video_opt
-                    .and_then(|s| s.disable_dwm.map(EnabledDisabled::from_i32))
-                    .unwrap_or(EnabledDisabled::Disabled);
-
-                self.oculus_enabled = if video_opt.is_some_and(|s| s.oculus_enabled) {
-                    EnabledDisabled::Enabled
-                } else {
-                    EnabledDisabled::Disabled
-                };
-
-                if let Some((hbao, dof, pcss)) = video_opt.and_then(|s| s.nvidia_effects) {
-                    self.nvidia_hbao = EnabledDisabled::from_i32(hbao);
-                    self.nvidia_dof = EnabledDisabled::from_i32(dof);
-                    self.nvidia_pcss = EnabledDisabled::from_i32(pcss);
-                } else {
-                    self.nvidia_hbao = EnabledDisabled::Disabled;
-                    self.nvidia_dof = EnabledDisabled::Disabled;
-                    self.nvidia_pcss = EnabledDisabled::Disabled;
-                }
-
                 true
             }
-
             Err(e) => {
                 self.status = Status::error(format!("Failed to reload video.scr: {}", e));
                 false
@@ -960,16 +1031,14 @@ impl MyApp {
                 );
 
                 if response.changed() && self.video_readonly.is_some() {
-                    let target_readonly = !checked;
-
-                    match video::toggle_video_scr_readonly(!target_readonly) {
+                    // `checked` is the new desired state; `!checked` is the current state
+                    match video::toggle_video_scr_readonly(!checked) {
                         Ok(new_state) => {
                             self.video_readonly = Some(new_state);
                         }
                         Err(e) => {
                             self.status =
                                 Status::warning(format!("Failed to change permissions: {}", e));
-                            self.video_readonly = Some(!target_readonly);
                         }
                     }
                 }
@@ -1499,6 +1568,21 @@ impl MyApp {
                                 self.status = Status::error(format!("Backup failed: {}", e));
                                 return;
                             }
+
+                            let settings = self.collect_video_settings();
+                            match video::write_video_scr(&settings) {
+                                Ok(_) => {
+                                    self.cached_video_settings = Some(settings);
+                                    self.status =
+                                        Status::success("Video settings saved successfully.");
+                                }
+                                Err(e) => {
+                                    self.status =
+                                        Status::error(format!("Failed to write video.scr: {}", e));
+                                }
+                            }
+                        } else {
+                            self.status = Status::error("Documents folder not found.");
                         }
                     }
 

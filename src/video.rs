@@ -69,18 +69,86 @@ pub struct VideoSettings {
     pub oculus_enabled: bool,
     /** Corresponds to Nvidia effects in-game (hbao+, dof, pcss). */
     pub nvidia_effects: Option<(i32, i32, i32)>,
+    /** Window position offset, preserved as-is. */
+    pub window_offset: Option<(i32, i32)>,
 }
 
 pub fn serialize_video_scr(settings: &VideoSettings) -> String {
-    let mut lines = Vec::new();
+    let mut lines: Vec<String> = VIDEO_SCR_COMMENTS.iter().map(|s| s.to_string()).collect();
+    lines.push(String::new());
 
-    for comment in VIDEO_SCR_COMMENTS {
-        lines.push(comment.to_string());
+    if let Some((w, h)) = settings.resolution {
+        lines.push(format!("Resolution({},{})", w, h));
+    }
+    if let Some((x, y)) = settings.window_offset {
+        lines.push(format!("WindowOffset({},{})", x, y));
+    }
+    if let Some(q) = settings.texture_quality {
+        lines.push(format!("TextureQuality(\"{}\")", q.as_str()));
+    }
+    if let Some(v) = settings.gamma_float {
+        lines.push(format!("GammaFloat({})", v));
+    }
+    if let Some(s) = settings.shadows {
+        if s != AdditionalShadows::Off {
+            lines.push(format!("Shadows(\"{}\")", s.as_str()));
+        }
+    }
+    if let Some(v) = settings.shadow_map_size {
+        lines.push(format!("ShadowMapSize({})", v));
+    }
+    if let Some(v) = settings.spot_shadow_map_size {
+        lines.push(format!("SpotShadowMapSize({})", v));
+    }
+    if settings.fullscreen {
+        lines.push("Fullscreen()".to_string());
+    }
+    if settings.borderless {
+        lines.push("Borderless()".to_string());
+    }
+    if let Some(v) = settings.max_fps {
+        lines.push(format!("MaxFPS({})", v));
+    }
+    if let Some(v) = settings.vsync {
+        lines.push(format!("VSync({})", v));
+    }
+    if let Some(v) = settings.grass_quality {
+        lines.push(format!("GrassQuality({})", v));
+    }
+    if let Some((a, b, c)) = settings.nvidia_effects {
+        lines.push(format!("NvidiaEffects({},{},{})", a, b, c));
+    }
+    if let Some(v) = settings.extra_game_fov {
+        lines.push(format!("ExtraGameFov({})", v));
+    }
+    if let Some((a, b)) = settings.vis_range {
+        lines.push(format!("VisRange({},{})", a, b));
+    }
+    if settings.oculus_enabled {
+        lines.push("OculusEnabled()".to_string());
+    }
+    if let Some(v) = settings.ambient_occlusion {
+        lines.push(format!("AmbientOcclusion({})", v));
+    }
+    if let Some(v) = settings.motion_blur {
+        lines.push(format!("MotionBlur({})", v));
+    }
+    if let Some(v) = settings.anti_aliasing {
+        lines.push(format!("AntiAliasing({})", v));
+    }
+    if let Some(v) = settings.disable_dwm {
+        lines.push(format!("DisableDWM({})", v));
     }
 
     let mut out = lines.join("\n");
     out.push('\n');
     out
+}
+
+pub fn write_video_scr(settings: &VideoSettings) -> io::Result<()> {
+    let path = get_video_scr_path()
+        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "video.scr path not found"))?;
+    fs::write(&path, serialize_video_scr(settings))
 }
 
 /** Parse video.scr file and return structured settings. */
@@ -204,9 +272,12 @@ pub fn parse_video_scr() -> io::Result<VideoSettings> {
                         }
                     }
                 }
-                "Version" | "Monitor" | "3dtvSettings" | "WindowOffset" => {
-                    // we don't need those fields
+                "WindowOffset" => {
+                    if let Some((a, b)) = parse_two_i32(value_part) {
+                        settings.window_offset = Some((a, b));
+                    }
                 }
+                "Version" | "Monitor" | "3dtvSettings" => {}
                 key => {
                     eprintln!("Unknown key found in video.scr: {}", key);
                 }
@@ -230,6 +301,15 @@ fn parse_single_f32(s: &str) -> Option<f32> {
 }
 
 fn parse_two_u32(s: &str) -> Option<(u32, u32)> {
+    let parts: Vec<&str> = s.split(',').map(|p| p.trim()).collect();
+    if parts.len() == 2 {
+        Some((parts[0].parse().ok()?, parts[1].parse().ok()?))
+    } else {
+        None
+    }
+}
+
+fn parse_two_i32(s: &str) -> Option<(i32, i32)> {
     let parts: Vec<&str> = s.split(',').map(|p| p.trim()).collect();
     if parts.len() == 2 {
         Some((parts[0].parse().ok()?, parts[1].parse().ok()?))

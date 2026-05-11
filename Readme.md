@@ -13,3 +13,6 @@ You can install this app 2 ways (only supports Windows):
 scoop bucket add dltweaks https://github.com/shwwwa/dl-bucket.git
 scoop install dltweaks
 ```
+# Compilation
+As simple as running `cargo build` but it requires protobuf to compile.
+https://github.com/protocolbuffers/protobuf/releases
